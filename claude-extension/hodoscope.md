@@ -1,0 +1,19 @@
+# /hodoscope — PR Trace Explorer
+
+Query PR history as Hodoscope traces.
+
+## Usage
+
+Use the hodoscope MCP tools to explore PR data:
+
+1. **List PRs**: `hodoscope_list_prs` with provider, owner, repo
+2. **PR Details**: `hodoscope_pr_details` for a specific PR's full event trace
+3. **Stats**: `hodoscope_stats` for repo-level PR metrics
+4. **Timeline**: `hodoscope_timeline` for activity in a date range
+
+## Arguments
+
+$ARGUMENTS — pass as `provider/owner/repo` (e.g., `github/octocat/hello-world`)
+
+Parse the argument string and call the appropriate hodoscope MCP tool.
+If no arguments provided, check if there's a git remote in the current directory and use that.
