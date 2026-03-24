@@ -11,24 +11,45 @@ import type { TracePath, TraceStats } from '../models/types';
  * - Stats dashboard shows KPIs for managers
  * - Fully self-contained — no external CDN dependencies
  */
+export interface WebviewOptions {
+  /** When true, omit CSP and nonces for standalone browser use */
+  standalone?: boolean;
+}
+
 export function generateWebviewHTML(
   traces: TracePath[],
   stats: TraceStats,
   nonce: string,
-  cspSource: string
+  cspSource: string,
+  options: WebviewOptions = {}
 ): string {
-  const tracesJSON = JSON.stringify(traces);
-  const statsJSON = JSON.stringify(stats);
+  // Escape for safe embedding in <script> tags — prevent </script> injection
+  // and escape special chars that break HTML embedding
+  const tracesJSON = JSON.stringify(traces)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+  const statsJSON = JSON.stringify(stats)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e');
   const hasData = traces.length > 0;
+  const { standalone = false } = options;
+
+  // In standalone mode, skip CSP entirely (file:// doesn't support nonces)
+  const cspTag = standalone
+    ? ''
+    : `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; img-src ${cspSource} https:;">`;
+  const nonceAttr = standalone ? '' : ` nonce="${nonce}"`;
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; img-src ${cspSource} https:;">
+  ${cspTag}
   <title>Hodoscope AI — PR Trace Visualizer</title>
-  <style nonce="${nonce}">
+  <style${nonceAttr}>
     /* ===== GLOBAL RESET & DARK THEME ===== */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -418,14 +439,26 @@ export function generateWebviewHTML(
   </div>
 
   <!-- DATA -->
-  <script nonce="${nonce}">
+  <script${nonceAttr}>
     window.__HODOSCOPE_DATA__ = ${tracesJSON};
     window.__HODOSCOPE_STATS__ = ${statsJSON};
   </script>
 
   <!-- RENDERER -->
-  <script nonce="${nonce}">
-  (function() {
+  <script${nonceAttr}>
+  // Defer init to ensure layout is computed
+  window.addEventListener('DOMContentLoaded', function() {
+    requestAnimationFrame(function() { initHodoscope(); });
+  });
+  // Fallback if DOMContentLoaded already fired
+  if (document.readyState !== 'loading') {
+    requestAnimationFrame(function() { initHodoscope(); });
+  }
+
+  var _hodoInitDone = false;
+  function initHodoscope() {
+    if (_hodoInitDone) return;
+    _hodoInitDone = true;
     'use strict';
 
     const traces = window.__HODOSCOPE_DATA__;
@@ -440,8 +473,10 @@ export function generateWebviewHTML(
 
     function resize() {
       const rect = canvas.parentElement.getBoundingClientRect();
-      W = rect.width;
-      H = rect.height;
+      W = rect.width || window.innerWidth - 220;
+      H = rect.height || window.innerHeight - 120;
+      if (W < 100) W = window.innerWidth - 220;
+      if (H < 100) H = window.innerHeight - 120;
       canvas.width = W * DPR;
       canvas.height = H * DPR;
       canvas.style.width = W + 'px';
@@ -608,11 +643,11 @@ export function generateWebviewHTML(
       const showCount = Math.ceil(pts.length * progress);
       const visiblePts = pts.slice(0, showCount);
 
-      // Map to screen coordinates
+      // Map to screen coordinates — spread FIRST so computed x/y override originals
       const screenPts = visiblePts.map(p => ({
+        ...p,
         x: mapX(p.timestamp),
         y: mapY(p.y) + (trace.prNumber % 20 - 10) * 1.5, // slight vertical jitter per PR
-        ...p,
       }));
 
       if (screenPts.length < 1) return;
@@ -905,7 +940,7 @@ export function generateWebviewHTML(
     recolorTraces('author');
     updateLegend();
     draw();
-  })();
+  }
   </script>
 </body>
 </html>`;

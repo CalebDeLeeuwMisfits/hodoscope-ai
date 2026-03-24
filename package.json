@@ -67,7 +67,7 @@
         },
         "hodoscope.animation.speed": {
           "type": "number",
-          "default": 1.0,
+          "default": 1,
           "description": "Animation speed multiplier (0.5 = slow, 2.0 = fast)"
         },
         "hodoscope.animation.particleTrails": {
@@ -95,6 +95,8 @@
     "@vitest/coverage-v8": "^2.1.0",
     "esbuild": "^0.24.0",
     "eslint": "^9.0.0",
+    "puppeteer": "^24.40.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.5.0",
     "vitest": "^2.1.0"
   },
