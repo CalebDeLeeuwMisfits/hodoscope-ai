@@ -1,7 +1,9 @@
-# Hodoscope AI
+# <img src="docs/misfits-logo.jpg" width="28" align="top"> Hodoscope AI
 
 ### Visualize your org's PR history as an interactive particle map
 
+> Created by **Caleb DeLeeuw** at **[Misfits & Machines](https://github.com/marketingarchitects)**
+>
 > Inspired by [Hodoscope](https://github.com/AR-FORUM/hodoscope) — unsupervised trajectory analysis for AI agents
 
 ---
@@ -145,6 +147,14 @@ Add the MCP server to your Claude Code config:
 
 - [Hodoscope](https://github.com/AR-FORUM/hodoscope) by AR-FORUM — the original trajectory analysis tool that inspired this project
 - Built with pure TypeScript — no D3, no WebGL, no external visualization dependencies
+
+---
+
+<p align="center">
+  <img src="docs/misfits-logo.jpg" width="48">
+  <br>
+  <strong>Built by <a href="https://github.com/CalebDeLeeuwMisfits">Caleb DeLeeuw</a> at <a href="https://github.com/marketingarchitects">Misfits & Machines</a></strong>
+</p>
 
 ## License
 
