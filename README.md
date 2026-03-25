@@ -12,6 +12,12 @@
 
 ## What it looks like
 
+<p align="center">
+  <img src="docs/scatter-preview.png" alt="Hodoscope AI — 136 PRs from GitHub and Azure DevOps visualized as a t-SNE scatter plot" width="100%">
+</p>
+
+*136 PRs across GitHub and Azure DevOps, projected into 2D via t-SNE. Each dot is a PR — color = author, ring = repo, size = event count. Density heatmap reveals behavioral clusters.*
+
 - Dark canvas with **density heatmap** (Gaussian KDE) showing where PR activity concentrates
 - **Glowing dots** sized by event count, colored by author/status/provider/repo
 - **Repo indicator rings** always visible as a subtle outer band on each dot
