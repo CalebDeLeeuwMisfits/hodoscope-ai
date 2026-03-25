@@ -59,30 +59,34 @@ async function main() {
   if (azdoToken) {
     console.log('\n=== Azure DevOps: misfitsandmachines ===');
     const azdoFetcher = new AzureDevOpsFetcher(azdoOrg, azdoToken);
-    // Fetch all projects dynamically
-    const azdoEnv = { ...process.env, PATH: process.env.PATH + ';C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\wbin' };
-    let azdoProjects: string[] = [];
-    try {
-      azdoProjects = execSync(
-        `az devops project list --org "${azdoOrg}" --query "value[].name" -o tsv`,
-        { encoding: 'utf-8', env: azdoEnv }
-      ).trim().split('\n').filter(Boolean);
-      console.log(`Found ${azdoProjects.length} projects`);
-    } catch { console.log('  Could not list projects'); }
-    for (const project of azdoProjects) {
-      try {
-        // List repos in the project
-        const reposJson = execSync(
-          `az repos list --org "${azdoOrg}" --project "${project}" --query "[].name" -o tsv 2>/dev/null || echo ""`,
-          { encoding: 'utf-8', env: azdoEnv }
-        ).trim();
-        const repos = reposJson.split('\n').filter(Boolean);
-        console.log(`  Project "${project}": ${repos.length} repos`);
 
-        for (const repo of repos) {
+    // Use the node API to list projects and repos (more reliable than az CLI)
+    const azdev = require('azure-devops-node-api');
+    const azdoAuth = azdev.getPersonalAccessTokenHandler(azdoToken);
+    const azdoConn = new azdev.WebApi(azdoOrg, azdoAuth);
+    const coreApi = await azdoConn.getCoreApi();
+    const gitApi = await azdoConn.getGitApi();
+
+    let azdoProjects: any[] = [];
+    try {
+      const projectsResult = await coreApi.getProjects();
+      azdoProjects = projectsResult || [];
+      console.log(`Found ${azdoProjects.length} projects`);
+    } catch (err: any) {
+      console.log(`  Could not list projects: ${err.message?.slice(0, 60)}`);
+    }
+
+    for (const proj of azdoProjects) {
+      const projectName = proj.name;
+      try {
+        const repos = await gitApi.getRepositories(projectName);
+        const repoNames = (repos || []).map((r: any) => r.name).filter(Boolean);
+        console.log(`  Project "${projectName}": ${repoNames.length} repos`);
+
+        for (const repoName of repoNames) {
           try {
-            process.stdout.write(`    ${repo}...`);
-            const traces = await azdoFetcher.fetchPRs(project, repo, { maxPRs: 50 });
+            process.stdout.write(`    ${repoName}...`);
+            const traces = await azdoFetcher.fetchPRs(projectName, repoName, { maxPRs: 50 });
             if (traces.length > 0) {
               allTraces.push(...traces);
               console.log(` ${traces.length} PRs`);
