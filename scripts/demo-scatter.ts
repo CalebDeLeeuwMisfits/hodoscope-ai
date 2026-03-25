@@ -55,17 +55,26 @@ async function main() {
 
   // ===== AZURE DEVOPS: misfitsandmachines org =====
   const azdoOrg = process.env.AZDO_ORG_URL || 'https://dev.azure.com/misfitsandmachines';
-  const azdoToken = process.env.AZDO_TOKEN || process.env.AZURE_DEVOPS_EXT_PAT || '';
+  const azdoToken = process.env.AZDO_TOKEN || process.env.AZURE_DEVOPS_EXT_PAT || process.env.AZURE_DEVOPS_TOKEN || '';
   if (azdoToken) {
     console.log('\n=== Azure DevOps: misfitsandmachines ===');
     const azdoFetcher = new AzureDevOpsFetcher(azdoOrg, azdoToken);
-    const azdoProjects = ['Venture Pitch Agent'];
+    // Fetch all projects dynamically
+    const azdoEnv = { ...process.env, PATH: process.env.PATH + ';C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\wbin' };
+    let azdoProjects: string[] = [];
+    try {
+      azdoProjects = execSync(
+        `az devops project list --org "${azdoOrg}" --query "value[].name" -o tsv`,
+        { encoding: 'utf-8', env: azdoEnv }
+      ).trim().split('\n').filter(Boolean);
+      console.log(`Found ${azdoProjects.length} projects`);
+    } catch { console.log('  Could not list projects'); }
     for (const project of azdoProjects) {
       try {
         // List repos in the project
         const reposJson = execSync(
           `az repos list --org "${azdoOrg}" --project "${project}" --query "[].name" -o tsv 2>/dev/null || echo ""`,
-          { encoding: 'utf-8', env: { ...process.env, PATH: process.env.PATH + ';C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\wbin' } }
+          { encoding: 'utf-8', env: azdoEnv }
         ).trim();
         const repos = reposJson.split('\n').filter(Boolean);
         console.log(`  Project "${project}": ${repos.length} repos`);

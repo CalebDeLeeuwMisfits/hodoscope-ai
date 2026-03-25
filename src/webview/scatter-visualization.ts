@@ -222,6 +222,17 @@ export function generateScatterHTML(
     .detail-link { color: #636EFA; text-decoration: none; font-size: 10px; }
     .detail-link:hover { text-decoration: underline; }
 
+    /* Toggle button */
+    .toggle-labels {
+      position: absolute; bottom: 12px; left: 12px; z-index: 20;
+      background: #161b22; border: 1px solid #30363d; border-radius: 5px;
+      color: #8b949e; padding: 4px 10px; font-size: 10px; cursor: pointer;
+      font-family: inherit; transition: all 0.15s; display: flex; align-items: center; gap: 5px;
+    }
+    .toggle-labels:hover { border-color: #636EFA; color: #e0e0e0; }
+    .toggle-labels.on { background: #636EFA18; border-color: #636EFA; color: #636EFA; }
+    .toggle-labels .ico { font-size: 12px; }
+
     /* Empty */
     .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #484f58; }
   </style>
@@ -252,6 +263,7 @@ export function generateScatterHTML(
   <div class="main">
     <div class="canvas-wrap">
       ${hasData ? '<canvas id="c"></canvas>' : '<div class="empty"><div style="font-size:36px;opacity:0.2;">&#9678;</div><div>No PR traces</div></div>'}
+      ${hasData ? '<button class="toggle-labels on" id="toggle-labels"><span class="ico">&#9781;</span> Labels</button>' : ''}
       <div class="tooltip" id="tip"></div>
       <div class="detail" id="detail">
         <button class="detail-close" id="detail-close">&times;</button>
@@ -348,6 +360,7 @@ export function generateScatterHTML(
 
     // ===== REPO HIGHLIGHT STATE =====
     var highlightedRepo = null; // when set, dims all non-matching dots
+    var showRepoLabels = true; // toggle via bottom-left button
 
     // ===== COLORING =====
     var colorBy = 'author';
@@ -514,6 +527,9 @@ export function generateScatterHTML(
 
       // ===== REPO LABELS at cluster centroids (clickable) =====
       _repoLabelHits = []; // clear hit areas each frame
+      if (!showRepoLabels && !highlightedRepo) {
+        // Skip labels but keep animation loop
+      } else {
       // Always show repo labels (even when colored by repo)
       var repoCentroids = {};
       visPts.forEach(function(p) {
@@ -553,6 +569,7 @@ export function generateScatterHTML(
         // Store hit area for click detection
         _repoLabelHits.push({ repo: repo, x: lx, y: ly, w: lw, h: lh });
       });
+      } // end showRepoLabels else block
 
       requestAnimationFrame(draw);
     }
@@ -662,6 +679,15 @@ export function generateScatterHTML(
       searchTxt = this.value;
       recolor();
     });
+
+    // Toggle repo labels
+    var toggleBtn = document.getElementById('toggle-labels');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', function() {
+        showRepoLabels = !showRepoLabels;
+        this.classList.toggle('on', showRepoLabels);
+      });
+    }
 
     function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
