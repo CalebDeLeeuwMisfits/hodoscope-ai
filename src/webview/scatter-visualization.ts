@@ -346,6 +346,9 @@ export function generateScatterHTML(
     // Assign stable repo color to each point
     pts.forEach(function(p) { p._repoColor = repoColorMap[p.repoName]; });
 
+    // ===== REPO HIGHLIGHT STATE =====
+    var highlightedRepo = null; // when set, dims all non-matching dots
+
     // ===== COLORING =====
     var colorBy = 'author';
     var hidden = {};
@@ -429,6 +432,7 @@ export function generateScatterHTML(
 
     // ===== DRAW =====
     var hovered = null;
+    var _repoLabelHits = []; // [{repo, x, y, w, h}] for click detection
 
     function draw() {
       // Background
@@ -451,76 +455,104 @@ export function generateScatterHTML(
         var px = sx(p.x), py = sy(p.y);
         var r = radius(p);
         var isH = hovered && hovered.id === p.id;
+        var dimmed = highlightedRepo && p.repoName !== highlightedRepo;
+        var isHighlit = highlightedRepo && p.repoName === highlightedRepo;
 
-        // Outer glow halo (primary color)
-        var grd2 = ctx.createRadialGradient(px, py, 0, px, py, r * (isH ? 4 : 2.5));
-        grd2.addColorStop(0, p.color + '40');
-        grd2.addColorStop(1, p.color + '00');
+        if (dimmed) {
+          // Dimmed: faint ghost dot
+          ctx.globalAlpha = 0.12;
+          ctx.beginPath();
+          ctx.arc(px, py, r * 0.8, 0, Math.PI * 2);
+          ctx.fillStyle = '#8b949e';
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          p._sx = px; p._sy = py; p._r = r;
+          return;
+        }
+
+        // Outer glow halo — extra bright when repo is highlighted
+        var glowMult = isHighlit ? 1.5 : 1;
+        var grd2 = ctx.createRadialGradient(px, py, 0, px, py, r * (isH ? 4 : 2.5) * glowMult);
+        grd2.addColorStop(0, (isHighlit ? p._repoColor : p.color) + '60');
+        grd2.addColorStop(1, (isHighlit ? p._repoColor : p.color) + '00');
         ctx.fillStyle = grd2;
         ctx.beginPath();
-        ctx.arc(px, py, r * (isH ? 4 : 2.5), 0, Math.PI * 2);
+        ctx.arc(px, py, r * (isH ? 4 : 2.5) * glowMult, 0, Math.PI * 2);
         ctx.fill();
 
-        // Repo indicator ring (always visible, subtle when not coloring by repo)
-        var ringAlpha = colorBy === 'repoName' ? '00' : 'aa'; // hide ring when already coloring by repo
+        // Repo indicator ring (always visible, brighter when highlighted)
+        var ringAlpha = colorBy === 'repoName' ? '00' : (isHighlit ? 'ff' : 'aa');
         ctx.beginPath();
         ctx.arc(px, py, r * (isH ? 1.7 : 1.3), 0, Math.PI * 2);
         ctx.strokeStyle = p._repoColor + ringAlpha;
-        ctx.lineWidth = isH ? 2.5 : 1.5;
+        ctx.lineWidth = isHighlit ? 3 : (isH ? 2.5 : 1.5);
         ctx.stroke();
 
-        // Core dot (primary color)
+        // Core dot (primary color, or repo color when highlighted)
         ctx.beginPath();
         ctx.arc(px, py, r * (isH ? 1.4 : 1), 0, Math.PI * 2);
-        ctx.fillStyle = p.color + (isH ? 'ff' : 'cc');
+        ctx.fillStyle = (isHighlit ? p._repoColor : p.color) + (isH ? 'ff' : 'cc');
         ctx.fill();
 
         // Bright center
         ctx.beginPath();
         ctx.arc(px, py, r * 0.4, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffffaa';
+        ctx.fillStyle = isHighlit ? '#ffffffdd' : '#ffffffaa';
         ctx.fill();
 
         // Store screen pos for hit testing
         p._sx = px; p._sy = py; p._r = r;
+
+        // Author label on highlighted nodes
+        if (isHighlit) {
+          ctx.font = '8px "JetBrains Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#e0e0e0cc';
+          ctx.fillText(p.author, px, py + r + 12);
+        }
       });
 
-      // ===== REPO LABELS at cluster centroids =====
-      if (colorBy !== 'repoName') {
-        // Group visible points by repo, compute centroids, label repos with 3+ points
-        var repoCentroids = {};
-        visPts.forEach(function(p) {
-          if (!repoCentroids[p.repoName]) repoCentroids[p.repoName] = { sx: 0, sy: 0, n: 0, color: p._repoColor };
-          repoCentroids[p.repoName].sx += sx(p.x);
-          repoCentroids[p.repoName].sy += sy(p.y);
-          repoCentroids[p.repoName].n++;
-        });
+      // ===== REPO LABELS at cluster centroids (clickable) =====
+      _repoLabelHits = []; // clear hit areas each frame
+      // Always show repo labels (even when colored by repo)
+      var repoCentroids = {};
+      visPts.forEach(function(p) {
+        if (!repoCentroids[p.repoName]) repoCentroids[p.repoName] = { sx: 0, sy: 0, n: 0, color: p._repoColor };
+        repoCentroids[p.repoName].sx += sx(p.x);
+        repoCentroids[p.repoName].sy += sy(p.y);
+        repoCentroids[p.repoName].n++;
+      });
 
-        ctx.font = '9px "JetBrains Mono", "Fira Code", monospace';
-        ctx.textAlign = 'center';
-        Object.keys(repoCentroids).forEach(function(repo) {
-          var c = repoCentroids[repo];
-          if (c.n < 2) return; // only label repos with 2+ visible PRs
-          var cx = c.sx / c.n;
-          var cy = c.sy / c.n - 18; // offset above centroid
+      ctx.font = '9px "JetBrains Mono", "Fira Code", monospace';
+      ctx.textAlign = 'center';
+      Object.keys(repoCentroids).forEach(function(repo) {
+        var c = repoCentroids[repo];
+        if (c.n < 2) return;
+        var cx = c.sx / c.n;
+        var cy = c.sy / c.n - 18;
+        var isActive = highlightedRepo === repo;
 
-          // Background pill
-          var tw = ctx.measureText(repo).width + 8;
-          ctx.fillStyle = '#0a0a0f99';
-          ctx.beginPath();
-          ctx.roundRect(cx - tw/2, cy - 7, tw, 14, 3);
-          ctx.fill();
+        var tw = ctx.measureText(repo).width + 10;
+        var lx = cx - tw/2, ly = cy - 8, lw = tw, lh = 16;
 
-          // Border in repo color
-          ctx.strokeStyle = c.color + '60';
-          ctx.lineWidth = 0.5;
-          ctx.stroke();
+        // Background pill — brighter when active
+        ctx.fillStyle = isActive ? c.color + '30' : '#0a0a0fbb';
+        ctx.beginPath();
+        ctx.roundRect(lx, ly, lw, lh, 4);
+        ctx.fill();
 
-          // Text
-          ctx.fillStyle = c.color + 'cc';
-          ctx.fillText(repo, cx, cy + 3);
-        });
-      }
+        // Border
+        ctx.strokeStyle = isActive ? c.color + 'ff' : c.color + '60';
+        ctx.lineWidth = isActive ? 1.5 : 0.5;
+        ctx.stroke();
+
+        // Text
+        ctx.fillStyle = isActive ? c.color + 'ff' : c.color + 'cc';
+        ctx.fillText(repo, cx, cy + 3);
+
+        // Store hit area for click detection
+        _repoLabelHits.push({ repo: repo, x: lx, y: ly, w: lw, h: lh });
+      });
 
       requestAnimationFrame(draw);
     }
@@ -531,12 +563,20 @@ export function generateScatterHTML(
       var rect = canvas.getBoundingClientRect();
       var mx = e.clientX - rect.left, my = e.clientY - rect.top;
       hovered = null;
+      // Check repo label hover for cursor
+      var overLabel = false;
+      for (var li = 0; li < _repoLabelHits.length; li++) {
+        var lbl = _repoLabelHits[li];
+        if (mx >= lbl.x && mx <= lbl.x + lbl.w && my >= lbl.y && my <= lbl.y + lbl.h) { overLabel = true; break; }
+      }
+      canvas.style.cursor = overLabel ? 'pointer' : 'crosshair';
+
       var visPts = pts.filter(isVisible);
       for (var i = visPts.length - 1; i >= 0; i--) {
         var p = visPts[i];
         if (!p._sx) continue;
         var dx = mx - p._sx, dy = my - p._sy;
-        if (dx*dx + dy*dy < (p._r + 6) * (p._r + 6)) { hovered = p; break; }
+        if (dx*dx + dy*dy < (p._r + 6) * (p._r + 6)) { hovered = p; canvas.style.cursor = 'pointer'; break; }
       }
       if (hovered) {
         var p = hovered;
@@ -558,10 +598,26 @@ export function generateScatterHTML(
       }
     });
 
-    // ===== CLICK → DETAIL PANEL =====
+    // ===== CLICK → REPO LABEL or DETAIL PANEL =====
     var detail = document.getElementById('detail');
     var detailBody = document.getElementById('detail-body');
-    canvas.addEventListener('click', function() {
+    canvas.addEventListener('click', function(e) {
+      var rect = canvas.getBoundingClientRect();
+      var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+
+      // Check if clicked a repo label
+      for (var li = 0; li < _repoLabelHits.length; li++) {
+        var lbl = _repoLabelHits[li];
+        if (mx >= lbl.x && mx <= lbl.x + lbl.w && my >= lbl.y && my <= lbl.y + lbl.h) {
+          // Toggle highlight: click same repo again to un-highlight
+          highlightedRepo = (highlightedRepo === lbl.repo) ? null : lbl.repo;
+          return;
+        }
+      }
+
+      // Click empty area clears repo highlight
+      if (!hovered && highlightedRepo) { highlightedRepo = null; return; }
+
       if (!hovered) { detail.classList.remove('open'); return; }
       var p = hovered;
       var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e'};

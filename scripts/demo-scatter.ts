@@ -18,27 +18,38 @@ async function main() {
   const allTraces: PRTrace[] = [];
   const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
 
-  // ===== GITHUB: marketingarchitects org =====
-  console.log('=== GitHub: marketingarchitects ===');
+  // ===== GITHUB: fetch from multiple orgs =====
   const ghFetcher = new GitHubFetcher(token || undefined);
-  const ghRepos = execSync(
-    `gh api orgs/marketingarchitects/repos --paginate --jq ".[].name"`,
-    { encoding: 'utf-8', env: { ...process.env, PATH: process.env.PATH + ';C:\\Program Files\\GitHub CLI' } }
-  ).trim().split('\n');
-  console.log(`Found ${ghRepos.length} repos`);
+  const ghOrgs = ['marketingarchitects', 'MisfitsSkunkworks'];
+  const ghEnv = { ...process.env, PATH: process.env.PATH + ';C:\\Program Files\\GitHub CLI' };
 
-  for (const repo of ghRepos) {
+  for (const org of ghOrgs) {
+    console.log(`=== GitHub: ${org} ===`);
+    let ghRepos: string[] = [];
     try {
-      process.stdout.write(`  ${repo}...`);
-      const traces = await ghFetcher.fetchPRs('marketingarchitects', repo, { maxPRs: 50, state: 'all' });
-      if (traces.length > 0) {
-        allTraces.push(...traces);
-        console.log(` ${traces.length} PRs`);
-      } else {
-        console.log(` 0`);
+      ghRepos = execSync(
+        `gh api orgs/${org}/repos --paginate --jq ".[].name"`,
+        { encoding: 'utf-8', env: ghEnv }
+      ).trim().split('\n').filter(Boolean);
+    } catch {
+      console.log(`  Could not list repos for ${org}`);
+      continue;
+    }
+    console.log(`Found ${ghRepos.length} repos`);
+
+    for (const repo of ghRepos) {
+      try {
+        process.stdout.write(`  ${repo}...`);
+        const traces = await ghFetcher.fetchPRs(org, repo, { maxPRs: 50, state: 'all' });
+        if (traces.length > 0) {
+          allTraces.push(...traces);
+          console.log(` ${traces.length} PRs`);
+        } else {
+          console.log(` 0`);
+        }
+      } catch (err: any) {
+        console.log(` error`);
       }
-    } catch (err: any) {
-      console.log(` error`);
     }
   }
 
