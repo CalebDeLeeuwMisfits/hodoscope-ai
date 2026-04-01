@@ -311,6 +311,60 @@ export function generateScatterHTML(
 
     /* Empty */
     .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #484f58; }
+
+    /* ===== TIME-LAPSE CONTROLS ===== */
+    .timelapse-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: #0d1117;
+      border-top: 1px solid #21262d;
+      flex-shrink: 0;
+      font-size: 10px;
+    }
+    .tl-btn {
+      background: #161b22; border: 1px solid #30363d; border-radius: 4px;
+      color: #8b949e; padding: 3px 8px; cursor: pointer; font-size: 10px;
+      font-family: inherit; transition: all 0.15s; display: flex; align-items: center; gap: 4px;
+    }
+    .tl-btn:hover { border-color: #636EFA; color: #e0e0e0; }
+    .tl-btn.active { background: #636EFA20; border-color: #636EFA; color: #636EFA; }
+    .tl-slider {
+      flex: 1; height: 4px; -webkit-appearance: none; appearance: none;
+      background: #21262d; border-radius: 2px; outline: none; cursor: pointer;
+    }
+    .tl-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+      background: #636EFA; border: 2px solid #0d1117; cursor: pointer;
+      box-shadow: 0 0 6px #636EFA88;
+    }
+    .tl-slider::-moz-range-thumb {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #636EFA; border: 2px solid #0d1117; cursor: pointer;
+    }
+    .tl-date {
+      font-size: 11px; font-weight: 700; color: #e0e0e0; min-width: 90px; text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    .tl-speed {
+      display: flex; gap: 2px;
+    }
+    .tl-speed-btn {
+      background: #161b22; border: 1px solid #30363d; border-radius: 3px;
+      color: #8b949e; padding: 2px 6px; cursor: pointer; font-size: 9px;
+      font-family: inherit; transition: all 0.15s;
+    }
+    .tl-speed-btn:hover { border-color: #636EFA; color: #e0e0e0; }
+    .tl-speed-btn.active { background: #636EFA20; border-color: #636EFA; color: #636EFA; }
+    .tl-count { color: #8b949e; font-size: 9px; min-width: 50px; text-align: right; }
+    .tl-live-btn {
+      background: #161b22; border: 1px solid #30363d; border-radius: 4px;
+      color: #8b949e; padding: 3px 10px; cursor: pointer; font-size: 10px;
+      font-family: inherit; transition: all 0.15s;
+    }
+    .tl-live-btn:hover { border-color: #00CC96; color: #00CC96; }
+    .tl-live-btn.live { background: #00CC9620; border-color: #00CC96; color: #00CC96; }
   </style>
 </head>
 <body>
@@ -382,6 +436,20 @@ export function generateScatterHTML(
       </div>
     </div>
   </div>
+
+  ${hasData ? `<div class="timelapse-bar" id="timelapse-bar">
+    <button class="tl-btn" id="tl-play" title="Play/Pause">&#9654;</button>
+    <input type="range" class="tl-slider" id="tl-slider" min="0" max="1000" value="1000">
+    <span class="tl-date" id="tl-date">Live</span>
+    <div class="tl-speed">
+      <button class="tl-speed-btn" data-speed="0.5">0.5x</button>
+      <button class="tl-speed-btn active" data-speed="1">1x</button>
+      <button class="tl-speed-btn" data-speed="2">2x</button>
+      <button class="tl-speed-btn" data-speed="4">4x</button>
+    </div>
+    <span class="tl-count" id="tl-count"></span>
+    <button class="tl-live-btn live" id="tl-live">&#9679; Live</button>
+  </div>` : ''}
 
   <script${nonceAttr}>
     window.__HODO_PTS__ = ${pointsJSON};
@@ -456,6 +524,19 @@ export function generateScatterHTML(
     var highlightedRepo = null; // when set, dims all non-matching dots
     var showRepoLabels = true; // toggle via bottom-left button
 
+    // ===== TIME-LAPSE STATE =====
+    var tlPlaying = false;
+    var tlSpeed = 1; // multiplier
+    var tlLive = true; // when true, show all PRs (no time filter)
+    // Compute time range from data
+    var _timestamps = pts.map(function(p) { return new Date(p.createdAt).getTime(); }).sort(function(a,b) { return a - b; });
+    var tlMinTime = _timestamps[0] || 0;
+    var tlMaxTime = _timestamps[_timestamps.length - 1] || Date.now();
+    var tlRange = tlMaxTime - tlMinTime || 1;
+    var tlCursor = tlMaxTime; // current position (epoch ms)
+    var tlStepMs = tlRange / 200; // each tick advances this much in simulated time
+    var _tlLastFrame = 0;
+
     // ===== COLORING =====
     var colorBy = 'author';
     var hidden = {};
@@ -496,6 +577,11 @@ export function generateScatterHTML(
         var s = searchTxt.toLowerCase();
         var hay = (p.title + ' ' + p.author + ' #' + p.prNumber + ' ' + p.repoName).toLowerCase();
         if (hay.indexOf(s) === -1) return false;
+      }
+      // Time-lapse filter
+      if (!tlLive) {
+        var t = new Date(p.createdAt).getTime();
+        if (t > tlCursor) return false;
       }
       return true;
     }
@@ -894,9 +980,112 @@ export function generateScatterHTML(
       el.innerHTML = html;
     }
 
+    // ===== TIME-LAPSE CONTROLS =====
+    var tlSlider = document.getElementById('tl-slider');
+    var tlDateEl = document.getElementById('tl-date');
+    var tlCountEl = document.getElementById('tl-count');
+    var tlPlayBtn = document.getElementById('tl-play');
+    var tlLiveBtn = document.getElementById('tl-live');
+
+    function updateTlUI() {
+      if (!tlSlider) return;
+      if (tlLive) {
+        tlSlider.value = '1000';
+        tlDateEl.textContent = 'Live';
+        tlLiveBtn.classList.add('live');
+        tlCountEl.textContent = pts.filter(isVisible).length + ' / ' + pts.length;
+      } else {
+        var pct = (tlCursor - tlMinTime) / tlRange;
+        tlSlider.value = String(Math.round(pct * 1000));
+        var d = new Date(tlCursor);
+        tlDateEl.textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        tlLiveBtn.classList.remove('live');
+        tlCountEl.textContent = pts.filter(isVisible).length + ' / ' + pts.length;
+      }
+    }
+
+    function tlTick(now) {
+      if (!tlPlaying || tlLive) return;
+      if (_tlLastFrame) {
+        var dt = (now - _tlLastFrame) * tlSpeed;
+        // Map 16ms of real time to tlStepMs of simulated time
+        tlCursor += tlStepMs * (dt / 16);
+        if (tlCursor >= tlMaxTime) {
+          tlCursor = tlMaxTime;
+          tlPlaying = false;
+          tlLive = true;
+          if (tlPlayBtn) tlPlayBtn.innerHTML = '&#9654;';
+        }
+        updateTlUI();
+        recolor();
+      }
+      _tlLastFrame = now;
+      if (tlPlaying) requestAnimationFrame(tlTick);
+    }
+
+    if (tlPlayBtn) {
+      tlPlayBtn.addEventListener('click', function() {
+        if (tlLive) {
+          // Start playback from beginning
+          tlLive = false;
+          tlCursor = tlMinTime;
+          tlPlaying = true;
+          _tlLastFrame = 0;
+          this.innerHTML = '&#9646;&#9646;';
+          updateTlUI();
+          recolor();
+          requestAnimationFrame(tlTick);
+        } else if (tlPlaying) {
+          // Pause
+          tlPlaying = false;
+          this.innerHTML = '&#9654;';
+        } else {
+          // Resume
+          if (tlCursor >= tlMaxTime) tlCursor = tlMinTime;
+          tlPlaying = true;
+          _tlLastFrame = 0;
+          this.innerHTML = '&#9646;&#9646;';
+          requestAnimationFrame(tlTick);
+        }
+      });
+    }
+
+    if (tlSlider) {
+      tlSlider.addEventListener('input', function() {
+        tlLive = false;
+        tlPlaying = false;
+        if (tlPlayBtn) tlPlayBtn.innerHTML = '&#9654;';
+        var pct = parseInt(this.value) / 1000;
+        tlCursor = tlMinTime + pct * tlRange;
+        updateTlUI();
+        recolor();
+      });
+    }
+
+    if (tlLiveBtn) {
+      tlLiveBtn.addEventListener('click', function() {
+        tlLive = true;
+        tlPlaying = false;
+        tlCursor = tlMaxTime;
+        if (tlPlayBtn) tlPlayBtn.innerHTML = '&#9654;';
+        updateTlUI();
+        recolor();
+      });
+    }
+
+    // Speed buttons
+    document.querySelectorAll('.tl-speed-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.tl-speed-btn').forEach(function(b) { b.classList.remove('active'); });
+        this.classList.add('active');
+        tlSpeed = parseFloat(this.dataset.speed);
+      });
+    });
+
     // ===== INIT =====
     recolor();
     buildKeyTable();
+    updateTlUI();
     draw();
   }
   </script>
