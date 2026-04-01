@@ -112,8 +112,8 @@ export function generateScatterHTML(
       border-bottom: 1px solid #21262d;
       flex-shrink: 0;
     }
-    .stat { flex: 1; text-align: center; padding: 6px 8px; background: #161b22; }
-    .stat-val { font-size: 18px; font-weight: 700; }
+    .stat { flex: 1; text-align: center; padding: 8px 8px; background: #161b22; }
+    .stat-val { font-size: 22px; font-weight: 700; }
     .stat-val.m { color: #00CC96; }
     .stat-val.o { color: #636EFA; }
     .stat-val.c { color: #EF553B; }
@@ -233,6 +233,52 @@ export function generateScatterHTML(
     .toggle-labels.on { background: #636EFA18; border-color: #636EFA; color: #636EFA; }
     .toggle-labels .ico { font-size: 12px; }
 
+    /* How-to-read button */
+    .guide-btn {
+      position: absolute; top: 12px; right: 12px; z-index: 20;
+      background: #161b22; border: 1px solid #30363d; border-radius: 50%;
+      color: #8b949e; width: 28px; height: 28px; font-size: 14px; cursor: pointer;
+      font-family: inherit; transition: all 0.15s; display: flex; align-items: center; justify-content: center;
+    }
+    .guide-btn:hover { border-color: #636EFA; color: #e0e0e0; }
+
+    /* Guide overlay */
+    .guide-overlay {
+      position: absolute; top: 48px; right: 12px; z-index: 30;
+      background: #161b22ee; border: 1px solid #30363d; border-radius: 8px;
+      padding: 14px 16px; max-width: 320px; font-size: 11px; color: #c8d6e5;
+      backdrop-filter: blur(12px); box-shadow: 0 4px 24px #00000088;
+      display: none; line-height: 1.5;
+    }
+    .guide-overlay.vis { display: block; }
+    .guide-overlay h4 { font-size: 11px; color: #e0e0e0; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+    .guide-overlay ul { margin: 0; padding-left: 16px; }
+    .guide-overlay li { margin-bottom: 4px; }
+    .guide-overlay .guide-close { float: right; background: none; border: none; color: #8b949e; cursor: pointer; font-size: 14px; }
+    .guide-overlay .guide-close:hover { color: #e0e0e0; }
+
+    /* Key table */
+    .key-table {
+      position: absolute; bottom: 12px; right: 12px; z-index: 20;
+      background: #161b22ee; border: 1px solid #30363d; border-radius: 6px;
+      padding: 8px 10px; font-size: 9px; color: #c8d6e5;
+      backdrop-filter: blur(8px); min-width: 120px;
+    }
+    .key-table .key-title {
+      font-size: 8px; text-transform: uppercase; letter-spacing: 1.5px;
+      color: #8b949e; margin-bottom: 4px; padding-bottom: 3px;
+      border-bottom: 1px solid #21262d;
+    }
+    .key-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+    .key-swatch {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      box-shadow: 0 0 4px currentColor;
+    }
+    .key-ring {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+      border: 1.5px solid; background: transparent;
+    }
+
     /* Empty */
     .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #484f58; }
   </style>
@@ -265,6 +311,23 @@ export function generateScatterHTML(
     <div class="canvas-wrap">
       ${hasData ? '<canvas id="c"></canvas>' : '<div class="empty"><div style="font-size:36px;opacity:0.2;">&#9678;</div><div>No PR traces</div></div>'}
       ${hasData ? '<button class="toggle-labels on" id="toggle-labels"><span class="ico">&#9781;</span> Labels</button>' : ''}
+      ${hasData ? '<button class="guide-btn" id="guide-btn" title="How to read this">?</button>' : ''}
+      <div class="guide-overlay" id="guide-overlay">
+        <button class="guide-close" id="guide-close">&times;</button>
+        <h4>How to read this</h4>
+        <ul>
+          <li><strong>Each dot</strong> is a pull request — size = number of events</li>
+          <li><strong>Position</strong> is determined by t-SNE: PRs with similar lifecycles cluster together</li>
+          <li><strong>X axis</strong> (Complexity) reflects code size, file count, and duration</li>
+          <li><strong>Y axis</strong> (Collaboration) reflects reviews, comments, and contributors</li>
+          <li><strong>Color</strong> represents the active grouping (author, status, repo, or provider)</li>
+          <li><strong>Outer ring</strong> always shows which repo the PR belongs to</li>
+          <li><strong>Glow intensity</strong> around each cluster indicates PR density</li>
+          <li><strong>Hover</strong> any dot for details — <strong>click</strong> for the full panel</li>
+          <li><strong>Click a repo label</strong> to highlight that repo's PRs</li>
+        </ul>
+      </div>
+      ${hasData ? '<div class="key-table" id="key-table"></div>' : ''}
       <div class="tooltip" id="tip"></div>
       <div class="detail" id="detail">
         <button class="detail-close" id="detail-close">&times;</button>
@@ -459,6 +522,19 @@ export function generateScatterHTML(
       grd.addColorStop(1, '#0a0a0f');
       ctx.fillStyle = grd;
       ctx.fillRect(0, 0, W, H);
+
+      // Axis labels
+      ctx.save();
+      ctx.font = '10px "JetBrains Mono", monospace';
+      ctx.fillStyle = '#484f5880';
+      ctx.textAlign = 'center';
+      ctx.fillText('Complexity \\u2192', W / 2, H - 8);
+      ctx.save();
+      ctx.translate(14, H / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText('Collaboration \\u2192', 0, 0);
+      ctx.restore();
+      ctx.restore();
 
       // Density
       drawDensity();
@@ -673,6 +749,7 @@ export function generateScatterHTML(
         colorBy = this.dataset.c;
         hidden = {};
         recolor();
+        buildKeyTable();
       });
     });
 
@@ -692,8 +769,57 @@ export function generateScatterHTML(
 
     function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+    // ===== GUIDE OVERLAY =====
+    var guideBtn = document.getElementById('guide-btn');
+    var guideOverlay = document.getElementById('guide-overlay');
+    var guideClose = document.getElementById('guide-close');
+    if (guideBtn) {
+      guideBtn.addEventListener('click', function() {
+        guideOverlay.classList.toggle('vis');
+      });
+    }
+    if (guideClose) {
+      guideClose.addEventListener('click', function() {
+        guideOverlay.classList.remove('vis');
+      });
+    }
+
+    // ===== KEY TABLE (always visible, updates with color mode) =====
+    function buildKeyTable() {
+      var el = document.getElementById('key-table');
+      if (!el) return;
+      var vals = [];
+      pts.forEach(function(p) { if (vals.indexOf(p[colorBy]) === -1) vals.push(p[colorBy]); });
+      var cmap = {};
+      vals.forEach(function(v, i) { cmap[v] = PAL[i % PAL.length]; });
+      var modeLabel = colorBy === 'repoName' ? 'Repo' : colorBy.charAt(0).toUpperCase() + colorBy.slice(1);
+
+      var html = '<div class="key-title">Key: ' + modeLabel + '</div>';
+      vals.slice(0, 8).forEach(function(v) {
+        var cnt = pts.filter(function(p) { return p[colorBy] === v; }).length;
+        html += '<div class="key-row"><span class="key-swatch" style="color:' + cmap[v] + ';background:' + cmap[v] + '"></span><span>' + esc(v) + '</span><span style="color:#8b949e;margin-left:auto;">' + cnt + '</span></div>';
+      });
+      if (vals.length > 8) {
+        html += '<div style="color:#484f58;padding-top:2px;">+' + (vals.length - 8) + ' more</div>';
+      }
+      // Add ring explanation
+      if (colorBy !== 'repoName') {
+        html += '<div style="margin-top:6px;padding-top:4px;border-top:1px solid #21262d;">';
+        html += '<div class="key-title" style="margin-bottom:3px;">Ring = Repo</div>';
+        repoNames.slice(0, 4).forEach(function(r) {
+          html += '<div class="key-row"><span class="key-ring" style="border-color:' + repoColorMap[r] + ';color:' + repoColorMap[r] + '"></span><span>' + esc(r) + '</span></div>';
+        });
+        if (repoNames.length > 4) {
+          html += '<div style="color:#484f58;padding-top:2px;">+' + (repoNames.length - 4) + ' more</div>';
+        }
+        html += '</div>';
+      }
+      el.innerHTML = html;
+    }
+
     // ===== INIT =====
     recolor();
+    buildKeyTable();
     draw();
   }
   </script>
