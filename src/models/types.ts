@@ -1,12 +1,11 @@
 // Hodoscope AI — PR Trace Data Models
 // Adapts the Hodoscope trajectory model to PR lifecycles
-// NOTE: PRTrace fields (description, additions, deletions, dates) power the deep-dive detail panel
 
 /** Source control provider */
-export type SCMProvider = 'github' | 'azure-devops';
+export type SCMProvider = 'github' | 'azure-devops' | 'wrike';
 
 /** PR status */
-export type PRStatus = 'open' | 'merged' | 'closed' | 'draft';
+export type PRStatus = 'open' | 'merged' | 'closed' | 'draft' | 'deferred';
 
 /** Types of events in a PR lifecycle */
 export type TraceEventType =
@@ -25,7 +24,8 @@ export type TraceEventType =
   | 'ci_passed'
   | 'ci_failed'
   | 'label_added'
-  | 'label_removed';
+  | 'label_removed'
+  | 'status_changed';
 
 /** A single event in a PR trace (analogous to Hodoscope "action") */
 export interface TraceEvent {
