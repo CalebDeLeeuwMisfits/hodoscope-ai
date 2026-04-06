@@ -128,6 +128,7 @@ async function main() {
     y: projected[i][1],
     prNumber: t.prNumber,
     title: t.title,
+    description: t.description,
     author: t.author,
     status: t.status,
     provider: t.provider,
@@ -140,6 +141,9 @@ async function main() {
     deletions: t.deletions,
     changedFiles: t.changedFiles,
     createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+    mergedAt: t.mergedAt,
+    closedAt: t.closedAt,
     labels: t.labels,
     reviewers: t.reviewers,
   }));

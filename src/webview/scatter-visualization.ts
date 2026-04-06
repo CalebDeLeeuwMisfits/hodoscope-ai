@@ -10,6 +10,7 @@ export interface ScatterPoint {
   y: number; // t-SNE / PCA y
   prNumber: number;
   title: string;
+  description?: string;
   author: string;
   status: PRStatus;
   provider: SCMProvider;
@@ -22,6 +23,9 @@ export interface ScatterPoint {
   deletions: number;
   changedFiles: number;
   createdAt: string;
+  updatedAt?: string;
+  mergedAt?: string;
+  closedAt?: string;
   labels: string[];
   reviewers: string[];
   color?: string;
@@ -203,7 +207,7 @@ export function generateScatterHTML(
 
     /* Detail panel (click) */
     .detail {
-      position: absolute; right: 0; top: 0; bottom: 0; width: 320px;
+      position: absolute; right: 0; top: 0; bottom: 0; width: 360px;
       background: #0d1117ee; border-left: 1px solid #21262d;
       padding: 16px; overflow-y: auto; z-index: 50;
       transform: translateX(100%); transition: transform 0.2s ease;
@@ -216,11 +220,37 @@ export function generateScatterHTML(
       padding: 2px 8px; cursor: pointer; font-size: 10px;
     }
     .detail-close:hover { color: #e0e0e0; border-color: #636EFA; }
-    .detail h3 { font-size: 13px; margin-bottom: 8px; }
+    .detail h3 { font-size: 14px; margin-bottom: 4px; }
     .detail-row { display: flex; justify-content: space-between; font-size: 10px; color: #c8d6e5; padding: 3px 0; border-bottom: 1px solid #21262d; }
     .detail-label { color: #8b949e; }
-    .detail-link { color: #636EFA; text-decoration: none; font-size: 10px; }
-    .detail-link:hover { text-decoration: underline; }
+    .detail-link {
+      display: inline-block; color: #fff; text-decoration: none; font-size: 11px;
+      background: #636EFA; padding: 5px 14px; border-radius: 4px; margin-top: 4px;
+      transition: background 0.15s;
+    }
+    .detail-link:hover { background: #4f5bd5; }
+    .detail-desc {
+      font-size: 11px; color: #8b949e; line-height: 1.4; margin: 8px 0;
+      max-height: 80px; overflow-y: auto; padding: 6px 8px;
+      background: #161b22; border-radius: 4px; border: 1px solid #21262d;
+    }
+    .detail-section-title {
+      font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px;
+      color: #8b949e; margin: 12px 0 4px; padding-bottom: 3px;
+      border-bottom: 1px solid #21262d;
+    }
+    .change-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin: 6px 0; }
+    .change-bar .add { background: #00CC96; }
+    .change-bar .del { background: #EF553B; }
+    .timeline-row {
+      display: flex; align-items: center; gap: 8px; font-size: 10px; padding: 3px 0;
+    }
+    .timeline-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    }
+    .timeline-line {
+      width: 1px; height: 10px; background: #21262d; margin-left: 2.5px;
+    }
 
     /* Toggle button */
     .toggle-labels {
@@ -715,22 +745,69 @@ export function generateScatterHTML(
       if (!hovered) { detail.classList.remove('open'); return; }
       var p = hovered;
       var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e'};
-      detailBody.innerHTML =
-        '<h3>PR #' + p.prNumber + '</h3>' +
-        '<div style="margin-bottom:8px;font-size:12px;color:#e0e0e0;">' + esc(p.title) + '</div>' +
-        '<a class="detail-link" href="' + esc(p.url) + '" target="_blank">Open in browser &rarr;</a>' +
-        '<div style="margin-top:12px;">' +
-        row('Status', '<span class="tt-badge" style="background:' + (statusColors[p.status]||'#8b949e') + '30;color:' + (statusColors[p.status]||'#8b949e') + '">' + p.status + '</span>') +
+      var totalChanges = p.additions + p.deletions || 1;
+      var addPct = Math.round((p.additions / totalChanges) * 100);
+      var delPct = 100 - addPct;
+
+      // Duration calculation
+      var created = new Date(p.createdAt);
+      var updated = p.updatedAt ? new Date(p.updatedAt) : null;
+      var merged = p.mergedAt ? new Date(p.mergedAt) : null;
+      var closed = p.closedAt ? new Date(p.closedAt) : null;
+      var endDate = merged || closed || updated || created;
+      var durationMs = endDate.getTime() - created.getTime();
+      var durationHrs = durationMs / (1000 * 60 * 60);
+      var durationStr = durationHrs < 1 ? Math.round(durationHrs * 60) + 'm' :
+                        durationHrs < 24 ? Math.round(durationHrs) + 'h' :
+                        Math.round(durationHrs / 24) + 'd';
+
+      var html = '<h3>PR #' + p.prNumber + '</h3>' +
+        '<div style="font-size:12px;color:#e0e0e0;margin-bottom:4px;">' + esc(p.title) + '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">' +
+        '<span class="tt-badge" style="background:' + (statusColors[p.status]||'#8b949e') + '30;color:' + (statusColors[p.status]||'#8b949e') + '">' + p.status + '</span>' +
+        '<span class="tt-badge" style="background:#30363d;color:#c8d6e5">' + p.provider + '</span>' +
+        '<span style="font-size:9px;color:#8b949e;">' + durationStr + '</span>' +
+        '</div>' +
+        '<a class="detail-link" href="' + esc(p.url) + '" target="_blank">Open in ' + (p.provider === 'github' ? 'GitHub' : 'Azure DevOps') + ' &rarr;</a>';
+
+      // Description
+      if (p.description) {
+        html += '<div class="detail-desc">' + esc(p.description) + '</div>';
+      }
+
+      // Changes section
+      html += '<div class="detail-section-title">Changes</div>' +
+        '<div class="change-bar"><div class="add" style="width:' + addPct + '%"></div><div class="del" style="width:' + delPct + '%"></div></div>' +
+        '<div style="display:flex;justify-content:space-between;font-size:10px;">' +
+        '<span style="color:#00CC96;">+' + p.additions + ' added</span>' +
+        '<span style="color:#EF553B;">-' + p.deletions + ' deleted</span>' +
+        '<span style="color:#8b949e;">' + p.changedFiles + ' files</span></div>';
+
+      // Timeline section
+      html += '<div class="detail-section-title">Timeline</div>';
+      var events = [];
+      events.push({ date: created, label: 'Created', color: '#636EFA' });
+      if (merged) events.push({ date: merged, label: 'Merged', color: '#00CC96' });
+      else if (closed) events.push({ date: closed, label: 'Closed', color: '#EF553B' });
+      if (updated && updated.getTime() !== created.getTime() && (!merged || updated.getTime() !== merged.getTime())) {
+        events.push({ date: updated, label: 'Last updated', color: '#8b949e' });
+      }
+      events.sort(function(a, b) { return a.date.getTime() - b.date.getTime(); });
+      events.forEach(function(ev, idx) {
+        if (idx > 0) html += '<div class="timeline-line"></div>';
+        html += '<div class="timeline-row"><span class="timeline-dot" style="background:' + ev.color + '"></span><span style="color:#c8d6e5;">' + ev.label + '</span><span style="color:#8b949e;margin-left:auto;">' + ev.date.toLocaleDateString() + '</span></div>';
+      });
+
+      // Details section
+      html += '<div class="detail-section-title">Details</div>' +
         row('Author', p.author) +
-        row('Provider', p.provider) +
         row('Repo', p.repoName) +
         row('Branch', p.sourceBranch + ' → ' + p.targetBranch) +
-        row('Changes', '+' + p.additions + ' / -' + p.deletions + ' (' + p.changedFiles + ' files)') +
         row('Events', p.eventCount) +
-        row('Created', new Date(p.createdAt).toLocaleString()) +
         row('Reviewers', p.reviewers.join(', ') || 'none') +
-        row('Labels', p.labels.join(', ') || 'none') +
-        '</div>';
+        row('Labels', p.labels.length > 0 ? p.labels.map(function(l) { return '<span class="tt-badge" style="background:#30363d;color:#c8d6e5;margin-left:2px;">' + esc(l) + '</span>'; }).join(' ') : '<span style="color:#484f58">none</span>');
+
+      detailBody.innerHTML = html;
       detail.classList.add('open');
     });
     document.getElementById('detail-close').addEventListener('click', function() {
