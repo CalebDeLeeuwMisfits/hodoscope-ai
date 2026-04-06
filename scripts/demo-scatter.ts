@@ -5,6 +5,7 @@
 
 import { GitHubFetcher } from '../src/fetchers/github';
 import { AzureDevOpsFetcher } from '../src/fetchers/azure-devops';
+import { WrikeFetcher } from '../src/fetchers/wrike';
 import { computeTraceStats } from '../src/models/trace-builder';
 import { extractFeatures, normalizeFeatures, computeTSNE } from '../src/models/projection';
 import { generateScatterHTML } from '../src/webview/scatter-visualization';
@@ -118,7 +119,23 @@ async function main() {
     console.log('\nSkipping Azure DevOps (no AZDO_TOKEN set)');
   }
 
-  console.log(`\n=== Total: ${allTraces.length} PRs ===`);
+  // ===== WRIKE: fetch tasks =====
+  const wrikeToken = process.env.WRIKE_TOKEN || '';
+  if (wrikeToken) {
+    console.log('\n=== Wrike ===');
+    const wrikeFetcher = new WrikeFetcher(wrikeToken);
+    try {
+      const traces = await wrikeFetcher.fetchTasks({ maxTasks: 200 });
+      allTraces.push(...traces);
+      console.log(`  ${traces.length} tasks`);
+    } catch (err: any) {
+      console.log(`  Error: ${err.message?.slice(0, 80)}`);
+    }
+  } else {
+    console.log('\nSkipping Wrike (no WRIKE_TOKEN set)');
+  }
+
+  console.log(`\n=== Total: ${allTraces.length} items ===`);
   if (allTraces.length === 0) { console.log('No PRs found.'); process.exit(1); }
 
   // ===== FEATURE EXTRACTION & t-SNE =====
