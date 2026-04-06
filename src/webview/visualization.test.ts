@@ -1,3 +1,4 @@
+// NOTE: Particle trace view tests — deep-dive panel tests live in scatter-visualization.test.ts
 import { describe, it, expect } from 'vitest';
 import { generateWebviewHTML } from './visualization';
 import type { TracePath, TraceStats } from '../models/types';

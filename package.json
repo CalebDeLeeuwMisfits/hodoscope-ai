@@ -1,7 +1,7 @@
 {
   "name": "hodoscope-ai",
   "displayName": "Hodoscope AI — PR Trace Visualizer",
-  "description": "Visualize Git PR history as interactive particle traces. Works with GitHub & Azure DevOps. Manager-friendly.",
+  "description": "Visualize Git PR history as interactive particle traces with deep-dive PR detail panels. Works with GitHub & Azure DevOps. Manager-friendly.",
   "version": "0.1.0",
   "publisher": "misfitsandmachines",
   "license": "MIT",

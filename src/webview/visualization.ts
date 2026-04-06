@@ -1,3 +1,4 @@
+// NOTE: Particle trace view — the scatter deep-dive detail panel lives in scatter-visualization.ts
 import type { TracePath, TraceStats } from '../models/types';
 
 /**

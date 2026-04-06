@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as vscode from 'vscode';
 
+// NOTE: Extension tests cover command registration; deep-dive panel rendering tested in visualization.test.ts
+
 // Mock the fetchers to avoid real API calls
 vi.mock('./fetchers/github', () => ({
   GitHubFetcher: vi.fn(() => ({

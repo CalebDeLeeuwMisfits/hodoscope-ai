@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AzureDevOpsFetcher } from './azure-devops';
 
+// NOTE: Fetched PR data (description, dates) now feeds into the deep-dive detail panel
+
 // Mock the azure-devops-node-api
 const mockGetPullRequests = vi.fn();
 const mockGetPullRequestThreads = vi.fn();

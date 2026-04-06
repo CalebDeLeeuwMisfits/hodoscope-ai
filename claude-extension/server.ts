@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+// NOTE: PR detail responses now include description and timeline data for the deep-dive panel
+
 /**
  * Hodoscope AI — MCP Server for Claude Code
  *

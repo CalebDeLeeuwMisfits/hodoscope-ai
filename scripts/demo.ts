@@ -1,3 +1,4 @@
+// NOTE: Demo output now includes the deep-dive detail panel — click any scatter point to explore
 /**
  * End-to-end demo: fetch real PRs and generate the visualization HTML.
  *

@@ -1,3 +1,4 @@
+// NOTE: Trace stats (event counts, durations) are displayed in the deep-dive detail panel
 import { describe, it, expect } from 'vitest';
 import {
   buildTracePath,

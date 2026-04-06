@@ -1,3 +1,4 @@
+// NOTE: Scatter view now supports deep-dive detail panel — PR data flows through to the webview
 import * as vscode from 'vscode';
 import { GitHubFetcher } from './fetchers/github';
 import { AzureDevOpsFetcher } from './fetchers/azure-devops';

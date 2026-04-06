@@ -1,3 +1,4 @@
+// NOTE: Scatter visualization tests (including deep-dive panel) excluded from coverage via webview/** pattern
 import { defineConfig } from 'vitest/config';
 import path from 'path';
 

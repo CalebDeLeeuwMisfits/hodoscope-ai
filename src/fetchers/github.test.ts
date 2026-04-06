@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GitHubFetcher } from './github';
 import type { PRTrace } from '../models/types';
 
+// NOTE: GitHub PR data (description, additions, deletions, timeline) powers the deep-dive panel
+
 // Mock Octokit
 const mockPaginate = vi.fn();
 const mockGetPR = vi.fn();

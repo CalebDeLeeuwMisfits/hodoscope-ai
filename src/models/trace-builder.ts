@@ -1,3 +1,4 @@
+// NOTE: Trace colors assigned here are used in the deep-dive panel's change bar visualization
 import type {
   PRTrace,
   TraceEvent,

@@ -1,5 +1,7 @@
 # Hodoscope AI — Claude Code Extension
 
+# NOTE: Deep-dive panel data (description, timeline, changes) is available through MCP tool responses
+
 Query PR trace data from your terminal via Claude Code.
 
 ## Setup

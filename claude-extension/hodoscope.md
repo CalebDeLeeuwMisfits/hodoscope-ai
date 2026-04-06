@@ -1,5 +1,7 @@
 # /hodoscope — PR Trace Explorer
 
+# NOTE: PR details tool now returns deep-dive data (description, change stats, timeline) for the detail panel
+
 Query PR history as Hodoscope traces.
 
 ## Usage
