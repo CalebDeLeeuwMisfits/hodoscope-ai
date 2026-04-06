@@ -745,9 +745,9 @@ export function generateScatterHTML(
       if (!hovered) { detail.classList.remove('open'); return; }
       var p = hovered;
       var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e'};
-      var totalChanges = p.additions + p.deletions || 1;
-      var addPct = Math.round((p.additions / totalChanges) * 100);
-      var delPct = 100 - addPct;
+      var totalChanges = p.additions + p.deletions;
+      var addPct = totalChanges > 0 ? Math.round((p.additions / totalChanges) * 100) : 0;
+      var delPct = totalChanges > 0 ? 100 - addPct : 0;
 
       // Duration calculation
       var created = new Date(p.createdAt);
@@ -768,7 +768,7 @@ export function generateScatterHTML(
         '<span class="tt-badge" style="background:#30363d;color:#c8d6e5">' + p.provider + '</span>' +
         '<span style="font-size:9px;color:#8b949e;">' + durationStr + '</span>' +
         '</div>' +
-        '<a class="detail-link" href="' + esc(p.url) + '" target="_blank">Open in ' + (p.provider === 'github' ? 'GitHub' : 'Azure DevOps') + ' &rarr;</a>';
+        '<a class="detail-link" href="' + esc(p.url) + '" target="_blank" rel="noopener noreferrer">Open in ' + (p.provider === 'github' ? 'GitHub' : 'Azure DevOps') + ' &rarr;</a>';
 
       // Description
       if (p.description) {
@@ -800,11 +800,11 @@ export function generateScatterHTML(
 
       // Details section
       html += '<div class="detail-section-title">Details</div>' +
-        row('Author', p.author) +
-        row('Repo', p.repoName) +
-        row('Branch', p.sourceBranch + ' → ' + p.targetBranch) +
+        row('Author', esc(p.author)) +
+        row('Repo', esc(p.repoName)) +
+        row('Branch', esc(p.sourceBranch) + ' → ' + esc(p.targetBranch)) +
         row('Events', p.eventCount) +
-        row('Reviewers', p.reviewers.join(', ') || 'none') +
+        row('Reviewers', p.reviewers.map(function(r) { return esc(r); }).join(', ') || 'none') +
         row('Labels', p.labels.length > 0 ? p.labels.map(function(l) { return '<span class="tt-badge" style="background:#30363d;color:#c8d6e5;margin-left:2px;">' + esc(l) + '</span>'; }).join(' ') : '<span style="color:#484f58">none</span>');
 
       detailBody.innerHTML = html;
