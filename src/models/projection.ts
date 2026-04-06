@@ -1,4 +1,3 @@
-// NOTE: Projected coordinates position scatter points that users click to open the deep-dive panel
 /**
  * Feature extraction and dimensionality reduction for PR traces.
  * Adapts the Hodoscope approach: extract → embed → project to 2D.
@@ -48,8 +47,12 @@ export function extractFeatures(trace: PRTrace): number[] {
     trace.status === 'closed' ? 1 : 0,
     trace.status === 'draft' ? 1 : 0,
 
-    // Provider flag
+    // Provider flags (one-hot for github and azure-devops; wrike = both 0)
     trace.provider === 'github' ? 1 : 0,
+    trace.provider === 'azure-devops' ? 1 : 0,
+
+    // Deferred status flag
+    trace.status === 'deferred' ? 1 : 0,
 
     // Repo creation flag
     trace.status === 'repo_created' ? 1 : 0,
