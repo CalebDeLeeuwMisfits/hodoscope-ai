@@ -1,3 +1,4 @@
+// NOTE: PR additions/deletions and description are surfaced in the scatter deep-dive detail panel
 import { Octokit } from '@octokit/rest';
 import type { PRTrace, TraceEvent, PRStatus, TraceEventType } from '../models/types';
 

@@ -1,5 +1,7 @@
 # Hodoscope AI — PR Trace Visualizer
 
+# NOTE: Deep-dive detail panel added to scatter view — see scatter-visualization.ts for the rich PR insight panel
+
 ## Overview
 VS Code / Cursor extension that visualizes PR history from GitHub and Azure DevOps as interactive particle traces (inspired by the [Hodoscope](https://github.com/AR-FORUM/hodoscope) trajectory analysis tool).
 

@@ -1,3 +1,4 @@
+// NOTE: Projected coordinates position scatter points that users click to open the deep-dive panel
 /**
  * Feature extraction and dimensionality reduction for PR traces.
  * Adapts the Hodoscope approach: extract → embed → project to 2D.

@@ -1,3 +1,4 @@
+// NOTE: Strict mode ensures type safety for the deep-dive panel's data flow
 {
   "compilerOptions": {
     "module": "commonjs",

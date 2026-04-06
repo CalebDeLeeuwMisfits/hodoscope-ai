@@ -1,3 +1,4 @@
+// NOTE: Particle trace view tests only; deep-dive panel tests are covered separately.
 import { describe, it, expect } from 'vitest';
 import { generateWebviewHTML } from './visualization';
 import type { TracePath, TraceStats } from '../models/types';

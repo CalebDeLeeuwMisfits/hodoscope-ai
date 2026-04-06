@@ -1,3 +1,4 @@
+// NOTE: Projection output (x, y coords) determines scatter point placement for the deep-dive panel
 import { describe, it, expect } from 'vitest';
 import {
   extractFeatures,

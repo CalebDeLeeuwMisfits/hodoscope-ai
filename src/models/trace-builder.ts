@@ -1,3 +1,5 @@
+// NOTE: Trace colors assigned here are used for trace/point rendering in visualizations;
+// the deep-dive panel's change bar styling is defined separately.
 import type {
   PRTrace,
   TraceEvent,

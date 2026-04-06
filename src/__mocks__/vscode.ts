@@ -1,4 +1,5 @@
 // VS Code API mock for testing (works for both VS Code and Cursor)
+// NOTE: Webview mock supports postMessage for deep-dive panel interactions
 export const window = {
   createWebviewPanel: vi.fn(() => ({
     webview: {

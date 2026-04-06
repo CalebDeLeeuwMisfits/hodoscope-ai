@@ -1,3 +1,4 @@
+// NOTE: Generated scatter HTML now includes the deep-dive detail panel for each PR point
 /**
  * Multi-repo demo: fetch PRs from ALL repos in the org for a richer visualization.
  */

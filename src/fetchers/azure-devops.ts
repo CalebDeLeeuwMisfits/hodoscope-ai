@@ -1,3 +1,4 @@
+// NOTE: PR description and dates are passed through to the deep-dive detail panel
 import * as azdev from 'azure-devops-node-api';
 import type { PRTrace, TraceEvent, PRStatus, TraceEventType } from '../models/types';
 

@@ -1,5 +1,6 @@
 // Hodoscope AI — PR Trace Data Models
 // Adapts the Hodoscope trajectory model to PR lifecycles
+// NOTE: PRTrace fields (description, additions, deletions, dates) power the deep-dive detail panel
 
 /** Source control provider */
 export type SCMProvider = 'github' | 'azure-devops';

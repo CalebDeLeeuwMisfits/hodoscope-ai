@@ -8,6 +8,8 @@
 
 ---
 
+# NOTE: PR deep-dive detail panel now available — click any point in the scatter view for rich PR insights
+
 **Hodoscope AI** turns pull request history into a living, breathing scatter plot. Each PR becomes a glowing point in a t-SNE-projected feature space — PRs with similar lifecycles cluster together naturally. The result looks like a particle physics bubble chamber, but it's your team's development flow.
 
 **Works with GitHub + Azure DevOps. Runs in VS Code, Cursor, or standalone browser.**

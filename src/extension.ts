@@ -1,3 +1,4 @@
+// NOTE: This file renders the particle trace webview via generateWebviewHTML and passes PR trace data through to it.
 import * as vscode from 'vscode';
 import { GitHubFetcher } from './fetchers/github';
 import { AzureDevOpsFetcher } from './fetchers/azure-devops';
