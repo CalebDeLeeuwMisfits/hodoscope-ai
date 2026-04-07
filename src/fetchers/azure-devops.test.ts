@@ -8,6 +8,7 @@ const mockGetPullRequests = vi.fn();
 const mockGetPullRequestThreads = vi.fn();
 const mockGetPullRequestIterations = vi.fn();
 const mockGetPullRequestReviewers = vi.fn();
+const mockGetRepository = vi.fn();
 
 vi.mock('azure-devops-node-api', () => ({
   WebApi: vi.fn(() => ({
@@ -16,6 +17,7 @@ vi.mock('azure-devops-node-api', () => ({
       getThreads: mockGetPullRequestThreads,
       getPullRequestIterations: mockGetPullRequestIterations,
       getPullRequestReviewers: mockGetPullRequestReviewers,
+      getRepository: mockGetRepository,
     })),
   })),
   getPersonalAccessTokenHandler: vi.fn(() => ({})),
@@ -97,6 +99,13 @@ describe('AzureDevOpsFetcher', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetRepository.mockResolvedValue({
+      name: 'repo',
+      project: { name: 'project' },
+      dateCreated: new Date('2021-03-01T00:00:00Z'),
+      createdBy: { displayName: 'admin', uniqueName: 'admin@company.com' },
+      webUrl: 'https://dev.azure.com/myorg/project/_git/repo',
+    });
     fetcher = new AzureDevOpsFetcher('https://dev.azure.com/myorg', 'fake-token');
   });
 
@@ -108,9 +117,10 @@ describe('AzureDevOpsFetcher', () => {
       mockGetPullRequestReviewers.mockResolvedValue(sampleReviewers);
 
       const traces = await fetcher.fetchPRs('project', 'repo');
+      const prTraces = traces.filter(t => t.status !== 'repo_created');
 
-      expect(traces).toHaveLength(1);
-      const trace = traces[0];
+      expect(prTraces).toHaveLength(1);
+      const trace = prTraces[0];
       expect(trace.provider).toBe('azure-devops');
       expect(trace.prNumber).toBe(99);
       expect(trace.title).toBe('Fix login bug');
@@ -199,7 +209,8 @@ describe('AzureDevOpsFetcher', () => {
     it('handles empty PR list', async () => {
       mockGetPullRequests.mockResolvedValue([]);
       const traces = await fetcher.fetchPRs('project', 'repo');
-      expect(traces).toEqual([]);
+      const prTraces = traces.filter(t => t.status !== 'repo_created');
+      expect(prTraces).toEqual([]);
     });
 
     it('populates reviewers list', async () => {
@@ -211,6 +222,35 @@ describe('AzureDevOpsFetcher', () => {
       const traces = await fetcher.fetchPRs('project', 'repo');
       expect(traces[0].reviewers).toContain('Carol');
       expect(traces[0].reviewers).toContain('Dave');
+    });
+
+    it('includes a synthetic repo_created trace', async () => {
+      mockGetPullRequests.mockResolvedValue([sampleAzdoPR]);
+      mockGetPullRequestThreads.mockResolvedValue(sampleThreads);
+      mockGetPullRequestIterations.mockResolvedValue(sampleIterations);
+      mockGetPullRequestReviewers.mockResolvedValue(sampleReviewers);
+
+      const traces = await fetcher.fetchPRs('project', 'repo');
+      const repoTrace = traces.find(t => t.status === 'repo_created');
+      expect(repoTrace).toBeDefined();
+    });
+
+    it('repo_created trace has correct shape for AzDO', async () => {
+      mockGetPullRequests.mockResolvedValue([]);
+
+      const traces = await fetcher.fetchPRs('project', 'repo');
+      expect(traces).toHaveLength(1);
+      const t = traces[0];
+      expect(t.status).toBe('repo_created');
+      expect(t.provider).toBe('azure-devops');
+      expect(t.prNumber).toBe(0);
+      expect(t.additions).toBe(0);
+      expect(t.deletions).toBe(0);
+      expect(t.changedFiles).toBe(0);
+      expect(t.events).toHaveLength(1);
+      expect(t.events[0].type).toBe('created');
+      expect(t.labels).toEqual([]);
+      expect(t.reviewers).toEqual([]);
     });
   });
 });

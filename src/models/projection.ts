@@ -50,6 +50,9 @@ export function extractFeatures(trace: PRTrace): number[] {
 
     // Provider flag
     trace.provider === 'github' ? 1 : 0,
+
+    // Repo creation flag
+    trace.status === 'repo_created' ? 1 : 0,
   ];
 }
 

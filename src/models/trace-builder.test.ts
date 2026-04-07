@@ -327,6 +327,21 @@ describe('computeTraceStats', () => {
     expect(stats.totalPRs).toBe(0);
     expect(stats.uniqueAuthors).toBe(0);
     expect(stats.avgEventsPerPR).toBe(0);
+    expect(stats.repoCreatedCount).toBe(0);
+  });
+
+  it('counts repo_created traces separately', () => {
+    const traces: PRTrace[] = [
+      makeTrace({ id: 'pr-1', status: 'merged' }),
+      makeTrace({ id: 'pr-2', status: 'open' }),
+      makeTrace({ id: 'repo-1', status: 'repo_created', prNumber: 0 }),
+    ];
+    const stats = computeTraceStats(traces);
+    expect(stats.totalPRs).toBe(3);
+    expect(stats.repoCreatedCount).toBe(1);
+    expect(stats.openPRs).toBe(1);
+    expect(stats.mergedPRs).toBe(1);
+    expect(stats.closedPRs).toBe(0);
   });
 
   it('computes date range from trace timestamps', () => {

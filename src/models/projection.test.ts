@@ -104,6 +104,27 @@ describe('extractFeatures', () => {
     expect(extractFeatures(merged)).not.toEqual(extractFeatures(open));
   });
 
+  it('returns 18-element feature vector', () => {
+    const features = extractFeatures(makeTrace());
+    expect(features.length).toBe(18);
+  });
+
+  it('sets repo_created flag at index 17', () => {
+    const trace = makeTrace({ status: 'repo_created' });
+    const features = extractFeatures(trace);
+    expect(features[17]).toBe(1);
+    // Other status flags should be 0
+    expect(features[12]).toBe(0); // merged
+    expect(features[13]).toBe(0); // open
+    expect(features[14]).toBe(0); // closed
+    expect(features[15]).toBe(0); // draft
+  });
+
+  it('repo_created flag is 0 for non-repo_created statuses', () => {
+    const features = extractFeatures(makeTrace({ status: 'merged' }));
+    expect(features[17]).toBe(0);
+  });
+
   it('returns consistent vector length across different traces', () => {
     const traces = [
       makeTrace({ id: 'pr-1' }),

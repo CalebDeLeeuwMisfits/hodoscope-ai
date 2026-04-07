@@ -10,6 +10,7 @@ const mockGetPR = vi.fn();
 const mockListReviews = vi.fn();
 const mockListEvents = vi.fn();
 const mockListComments = vi.fn();
+const mockReposGet = vi.fn();
 
 vi.mock('@octokit/rest', () => ({
   Octokit: vi.fn(() => ({
@@ -21,6 +22,9 @@ vi.mock('@octokit/rest', () => ({
     issues: {
       listEvents: { endpoint: { merge: vi.fn() } },
       listComments: { endpoint: { merge: vi.fn() } },
+    },
+    repos: {
+      get: mockReposGet,
     },
   })),
 }));
@@ -213,6 +217,67 @@ describe('GitHubFetcher', () => {
       expect(traces[0].additions).toBe(150);
       expect(traces[0].deletions).toBe(20);
       expect(traces[0].changedFiles).toBe(5);
+    });
+
+    it('includes a synthetic repo_created trace', async () => {
+      mockPaginate
+        .mockResolvedValueOnce([sampleGHPR])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      mockReposGet.mockResolvedValueOnce({
+        data: {
+          created_at: '2020-06-15T00:00:00Z',
+          owner: { login: 'orgbot' },
+          html_url: 'https://github.com/org/repo',
+        },
+      });
+
+      const traces = await fetcher.fetchPRs('org', 'repo');
+      const repoTrace = traces.find(t => t.status === 'repo_created');
+      expect(repoTrace).toBeDefined();
+    });
+
+    it('repo_created trace has correct shape', async () => {
+      mockPaginate.mockResolvedValueOnce([]);
+      mockReposGet.mockResolvedValueOnce({
+        data: {
+          created_at: '2020-06-15T00:00:00Z',
+          owner: { login: 'orgbot' },
+          html_url: 'https://github.com/org/repo',
+        },
+      });
+
+      const traces = await fetcher.fetchPRs('org', 'repo');
+      expect(traces).toHaveLength(1);
+      const t = traces[0];
+      expect(t.status).toBe('repo_created');
+      expect(t.prNumber).toBe(0);
+      expect(t.additions).toBe(0);
+      expect(t.deletions).toBe(0);
+      expect(t.changedFiles).toBe(0);
+      expect(t.sourceBranch).toBe('');
+      expect(t.targetBranch).toBe('');
+      expect(t.events).toHaveLength(1);
+      expect(t.events[0].type).toBe('created');
+      expect(t.labels).toEqual([]);
+      expect(t.reviewers).toEqual([]);
+      expect(t.url).toBe('https://github.com/org/repo');
+      expect(t.author).toBe('orgbot');
+      expect(t.createdAt).toBe('2020-06-15T00:00:00Z');
+    });
+
+    it('still works when repo metadata fetch fails', async () => {
+      mockPaginate
+        .mockResolvedValueOnce([sampleGHPR])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      mockReposGet.mockRejectedValueOnce(new Error('Not Found'));
+
+      const traces = await fetcher.fetchPRs('org', 'repo');
+      expect(traces).toHaveLength(1);
+      expect(traces[0].status).toBe('merged');
     });
   });
 });

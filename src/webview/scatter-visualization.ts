@@ -123,6 +123,7 @@ export function generateScatterHTML(
     .stat-val.c { color: #EF553B; }
     .stat-val.t { color: #FFA15A; }
     .stat-val.a { color: #AB63FA; }
+    .stat-val.r { color: #00d2d3; }
     .stat-lbl { font-size: 8px; text-transform: uppercase; letter-spacing: 1.5px; color: #8b949e; margin-top: 2px; }
 
     /* ===== MAIN ===== */
@@ -389,6 +390,7 @@ export function generateScatterHTML(
     <div class="stat"><div class="stat-val o">${stats.openPRs}</div><div class="stat-lbl">Open</div></div>
     <div class="stat"><div class="stat-val c">${stats.closedPRs}</div><div class="stat-lbl">Closed</div></div>
     <div class="stat"><div class="stat-val a">${stats.uniqueAuthors}</div><div class="stat-lbl">Authors</div></div>
+    <div class="stat"><div class="stat-val r">${stats.repoCreatedCount || 0}</div><div class="stat-lbl">Repos</div></div>
   </div>
 
   <div class="main">
@@ -623,6 +625,16 @@ export function generateScatterHTML(
       ctx.drawImage(tmpCanvas, 0, 0, W, H);
     }
 
+    // ===== DIAMOND HELPER =====
+    function drawDiamond(cx, cy, size) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - size);
+      ctx.lineTo(cx + size, cy);
+      ctx.lineTo(cx, cy + size);
+      ctx.lineTo(cx - size, cy);
+      ctx.closePath();
+    }
+
     // ===== DRAW =====
     var hovered = null;
     var _repoLabelHits = []; // [{repo, x, y, w, h}] for click detection
@@ -676,7 +688,8 @@ export function generateScatterHTML(
           return;
         }
 
-        // Outer glow halo — extra bright when repo is highlighted
+        var isDiamond = p.status === 'repo_created';
+        // Outer glow halo (circular for both — looks natural behind diamond)
         var glowMult = isHighlit ? 1.5 : 1;
         var grd2 = ctx.createRadialGradient(px, py, 0, px, py, r * (isH ? 4 : 2.5) * glowMult);
         grd2.addColorStop(0, (isHighlit ? p._repoColor : p.color) + '60');
@@ -688,21 +701,33 @@ export function generateScatterHTML(
 
         // Repo indicator ring (always visible, brighter when highlighted)
         var ringAlpha = colorBy === 'repoName' ? '00' : (isHighlit ? 'ff' : 'aa');
-        ctx.beginPath();
-        ctx.arc(px, py, r * (isH ? 1.7 : 1.3), 0, Math.PI * 2);
+        if (isDiamond) {
+          drawDiamond(px, py, r * (isH ? 1.7 : 1.3));
+        } else {
+          ctx.beginPath();
+          ctx.arc(px, py, r * (isH ? 1.7 : 1.3), 0, Math.PI * 2);
+        }
         ctx.strokeStyle = p._repoColor + ringAlpha;
         ctx.lineWidth = isHighlit ? 3 : (isH ? 2.5 : 1.5);
         ctx.stroke();
 
-        // Core dot (primary color, or repo color when highlighted)
-        ctx.beginPath();
-        ctx.arc(px, py, r * (isH ? 1.4 : 1), 0, Math.PI * 2);
+        // Core shape (primary color, or repo color when highlighted)
+        if (isDiamond) {
+          drawDiamond(px, py, r * (isH ? 1.4 : 1));
+        } else {
+          ctx.beginPath();
+          ctx.arc(px, py, r * (isH ? 1.4 : 1), 0, Math.PI * 2);
+        }
         ctx.fillStyle = (isHighlit ? p._repoColor : p.color) + (isH ? 'ff' : 'cc');
         ctx.fill();
 
         // Bright center
-        ctx.beginPath();
-        ctx.arc(px, py, r * 0.4, 0, Math.PI * 2);
+        if (isDiamond) {
+          drawDiamond(px, py, r * 0.4);
+        } else {
+          ctx.beginPath();
+          ctx.arc(px, py, r * 0.4, 0, Math.PI * 2);
+        }
         ctx.fillStyle = isHighlit ? '#ffffffdd' : '#ffffffaa';
         ctx.fill();
 
@@ -790,10 +815,10 @@ export function generateScatterHTML(
       }
       if (hovered) {
         var p = hovered;
-        var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e'};
+        var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e',repo_created:'#00d2d3'};
         tip.innerHTML =
-          '<div class="tt-title">PR #' + p.prNumber + ': ' + esc(p.title) + '</div>' +
-          '<div class="tt-meta">' + esc(p.author) + ' &middot; ' + esc(p.repoName) + ' &middot; ' + p.sourceBranch + ' → ' + p.targetBranch + '</div>' +
+          '<div class="tt-title">' + (p.status === 'repo_created' ? '◆ ' + esc(p.title) : 'PR #' + p.prNumber + ': ' + esc(p.title)) + '</div>' +
+          '<div class="tt-meta">' + esc(p.author) + ' &middot; ' + esc(p.repoName) + (p.status !== 'repo_created' ? ' &middot; ' + p.sourceBranch + ' → ' + p.targetBranch : '') + '</div>' +
           '<div style="margin:4px 0"><span class="tt-badge" style="background:' + (statusColors[p.status]||'#8b949e') + '30;color:' + (statusColors[p.status]||'#8b949e') + '">' + p.status + '</span>' +
           ' <span class="tt-badge" style="background:#30363d;color:#c8d6e5">' + p.provider + '</span></div>' +
           '<div class="tt-row"><span>+' + p.additions + ' / -' + p.deletions + '</span><span>' + p.eventCount + ' events</span></div>' +
@@ -830,7 +855,7 @@ export function generateScatterHTML(
 
       if (!hovered) { detail.classList.remove('open'); return; }
       var p = hovered;
-      var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e'};
+      var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e',repo_created:'#00d2d3'};
       var totalChanges = p.additions + p.deletions;
       var addPct = totalChanges > 0 ? Math.round((p.additions / totalChanges) * 100) : 0;
       var delPct = totalChanges > 0 ? 100 - addPct : 0;
@@ -847,14 +872,14 @@ export function generateScatterHTML(
                         durationHrs < 24 ? Math.round(durationHrs) + 'h' :
                         Math.round(durationHrs / 24) + 'd';
 
-      var html = '<h3>PR #' + p.prNumber + '</h3>' +
+      var html = '<h3>' + (p.status === 'repo_created' ? '◆ Repo Created' : 'PR #' + p.prNumber) + '</h3>' +
         '<div style="font-size:12px;color:#e0e0e0;margin-bottom:4px;">' + esc(p.title) + '</div>' +
         '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">' +
         '<span class="tt-badge" style="background:' + (statusColors[p.status]||'#8b949e') + '30;color:' + (statusColors[p.status]||'#8b949e') + '">' + p.status + '</span>' +
         '<span class="tt-badge" style="background:#30363d;color:#c8d6e5">' + p.provider + '</span>' +
         '<span style="font-size:9px;color:#8b949e;">' + durationStr + '</span>' +
         '</div>' +
-        '<a class="detail-link" href="' + esc(p.url) + '" target="_blank" rel="noopener noreferrer">Open in ' + (p.provider === 'github' ? 'GitHub' : 'Azure DevOps') + ' &rarr;</a>';
+        '<a class="detail-link" href="' + esc(p.url) + '" target="_blank" rel="noopener noreferrer">' + (p.status === 'repo_created' ? 'View Repository' : 'Open in ' + (p.provider === 'github' ? 'GitHub' : 'Azure DevOps')) + ' &rarr;</a>';
 
       // Description
       if (p.description) {

@@ -5,7 +5,7 @@
 export type SCMProvider = 'github' | 'azure-devops' | 'wrike';
 
 /** PR status */
-export type PRStatus = 'open' | 'merged' | 'closed' | 'draft' | 'deferred';
+export type PRStatus = 'open' | 'merged' | 'closed' | 'draft' | 'deferred' | 'repo_created';
 
 /** Types of events in a PR lifecycle */
 export type TraceEventType =
@@ -123,6 +123,7 @@ export interface TraceStats {
   openPRs: number;
   mergedPRs: number;
   closedPRs: number;
+  repoCreatedCount: number;
   totalEvents: number;
   uniqueAuthors: number;
   avgEventsPerPR: number;

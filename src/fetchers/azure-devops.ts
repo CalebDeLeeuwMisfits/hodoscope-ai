@@ -1,6 +1,7 @@
 // NOTE: PR description and dates are passed through to the deep-dive detail panel
 import * as azdev from 'azure-devops-node-api';
 import type { PRTrace, TraceEvent, PRStatus, TraceEventType } from '../models/types';
+import { buildRepoCreatedTrace } from '../models/trace-factory';
 
 export interface AzdoFetchOptions {
   maxPRs?: number;
@@ -89,6 +90,23 @@ export class AzureDevOpsFetcher {
         changedFiles: 0,
       });
     }
+
+    // Add synthetic repo creation trace
+    try {
+      const repoInfo = await gitApi.getRepository(repo, project);
+      if (repoInfo) {
+        const createdAt = repoInfo.dateCreated?.toISOString() || new Date().toISOString();
+        const author = (repoInfo as any).createdBy?.displayName || 'unknown';
+        const url = (repoInfo as any).webUrl || '';
+        traces.push(buildRepoCreatedTrace(
+          'azure-devops',
+          `${project}/${repo}`,
+          createdAt,
+          author,
+          url
+        ));
+      }
+    } catch { /* graceful degradation */ }
 
     return traces;
   }

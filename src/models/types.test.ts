@@ -16,4 +16,9 @@ describe('Type widening for Wrike support', () => {
     const event: TraceEventType = 'status_changed';
     expect(event).toBe('status_changed');
   });
+
+  it('PRStatus accepts repo_created', () => {
+    const status: PRStatus = 'repo_created';
+    expect(status).toBe('repo_created');
+  });
 });
