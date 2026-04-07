@@ -139,31 +139,52 @@ async function main() {
   });
 
   // ===== BUILD SCATTER POINTS (PRs first) =====
-  const traceToPoint = (t: PRTrace, x: number, y: number): ScatterPoint => ({
-    id: t.id,
-    x,
-    y,
-    prNumber: t.prNumber,
-    title: t.title,
-    description: t.description,
-    author: t.author,
-    status: t.status,
-    provider: t.provider,
-    repoName: t.repoFullName.split('/').pop() || t.repoFullName,
-    sourceBranch: t.sourceBranch,
-    targetBranch: t.targetBranch,
-    url: t.url,
-    eventCount: t.events.length,
-    additions: t.additions,
-    deletions: t.deletions,
-    changedFiles: t.changedFiles,
-    createdAt: t.createdAt,
-    updatedAt: t.updatedAt,
-    mergedAt: t.mergedAt,
-    closedAt: t.closedAt,
-    labels: t.labels,
-    reviewers: t.reviewers,
-  });
+  function countEvents(t: PRTrace) {
+    let reviews = 0, approvals = 0, comments = 0, timeline = 0;
+    for (const e of t.events) {
+      switch (e.type) {
+        case 'review_submitted': case 'changes_requested': reviews++; break;
+        case 'approved': approvals++; break;
+        case 'comment': comments++; break;
+        case 'label_added': case 'label_removed': case 'review_requested':
+        case 'reopened': case 'force_pushed': timeline++; break;
+      }
+    }
+    return { reviews, approvals, comments, timeline };
+  }
+
+  const traceToPoint = (t: PRTrace, x: number, y: number): ScatterPoint => {
+    const ec = countEvents(t);
+    return {
+      id: t.id,
+      x,
+      y,
+      prNumber: t.prNumber,
+      title: t.title,
+      description: t.description,
+      author: t.author,
+      status: t.status,
+      provider: t.provider,
+      repoName: t.repoFullName.split('/').pop() || t.repoFullName,
+      sourceBranch: t.sourceBranch,
+      targetBranch: t.targetBranch,
+      url: t.url,
+      eventCount: t.events.length,
+      additions: t.additions,
+      deletions: t.deletions,
+      changedFiles: t.changedFiles,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+      mergedAt: t.mergedAt,
+      closedAt: t.closedAt,
+      labels: t.labels,
+      reviewers: t.reviewers,
+      reviewCount: ec.reviews,
+      approvalCount: ec.approvals,
+      commentCount: ec.comments,
+      timelineEventCount: ec.timeline,
+    };
+  };
 
   const points: ScatterPoint[] = prTraces.map((t, i) => traceToPoint(t, projected[i][0], projected[i][1]));
 

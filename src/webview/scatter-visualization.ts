@@ -28,6 +28,11 @@ export interface ScatterPoint {
   closedAt?: string;
   labels: string[];
   reviewers: string[];
+  // Event breakdown counts
+  reviewCount?: number;
+  approvalCount?: number;
+  commentCount?: number;
+  timelineEventCount?: number;
   color?: string;
 }
 
@@ -979,7 +984,14 @@ export function generateScatterHTML(
         row('Author', esc(p.author)) +
         row('Repo', esc(p.repoName)) +
         row('Branch', esc(p.sourceBranch) + ' → ' + esc(p.targetBranch)) +
-        row('Events', p.eventCount) +
+        row('Events', p.eventCount +
+          (p.reviewCount || p.approvalCount || p.commentCount || p.timelineEventCount ?
+            ' <span style="font-size:9px;color:#8b949e;">(' +
+            [p.reviewCount ? p.reviewCount + ' reviews' : '',
+             p.approvalCount ? p.approvalCount + ' approvals' : '',
+             p.commentCount ? p.commentCount + ' comments' : '',
+             p.timelineEventCount ? p.timelineEventCount + ' timeline' : '']
+            .filter(function(s) { return s; }).join(', ') + ')</span>' : '')) +
         row('Reviewers', p.reviewers.map(function(r) { return esc(r); }).join(', ') || 'none') +
         row('Labels', p.labels.length > 0 ? p.labels.map(function(l) { return '<span class="tt-badge" style="background:#30363d;color:#c8d6e5;margin-left:2px;">' + esc(l) + '</span>'; }).join(' ') : '<span style="color:#484f58">none</span>');
 
