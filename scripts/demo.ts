@@ -12,6 +12,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 
+function getGhToken(): string {
+  if (process.env.GH_TOKEN) return process.env.GH_TOKEN;
+  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
+  try {
+    return execSync('gh auth token', { encoding: 'utf-8' }).trim();
+  } catch {
+    return '';
+  }
+}
+
 async function main() {
   const owner = process.argv[2] || 'marketingarchitects';
   const repo = process.argv[3] || 'scriptsooth-app';
@@ -19,8 +29,10 @@ async function main() {
 
   console.log(`Fetching PRs from ${owner}/${repo} (max: ${maxPRs})...`);
 
-  // Use GH_TOKEN or GITHUB_TOKEN from env
-  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
+  const token = getGhToken();
+  if (!token) {
+    console.warn('Warning: No GitHub token found. Run `gh auth login` or set GH_TOKEN.');
+  }
   const fetcher = new GitHubFetcher(token || undefined);
 
   const traces = await fetcher.fetchPRs(owner, repo, { maxPRs, state: 'all' });

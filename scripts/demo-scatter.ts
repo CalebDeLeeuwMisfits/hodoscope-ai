@@ -14,9 +14,22 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 
+function getGhToken(): string {
+  if (process.env.GH_TOKEN) return process.env.GH_TOKEN;
+  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
+  try {
+    return execSync('gh auth token', { encoding: 'utf-8' }).trim();
+  } catch {
+    return '';
+  }
+}
+
 async function main() {
   const allTraces: PRTrace[] = [];
-  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
+  const token = getGhToken();
+  if (!token) {
+    console.warn('Warning: No GitHub token found. Run `gh auth login` or set GH_TOKEN.');
+  }
 
   // ===== GITHUB: fetch from multiple orgs =====
   const ghFetcher = new GitHubFetcher(token || undefined);
