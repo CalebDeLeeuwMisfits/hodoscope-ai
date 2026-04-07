@@ -1,6 +1,6 @@
-# <img src="docs/misfits-logo.jpg" width="28" align="top"> Hodoscope AI
+# <img src="https://github.com/user-attachments/assets/aa6a1ce7-d4a1-45ad-8f4f-73d9d82e2f7d" width="28" align="top"> Hodoscope AI
 
-### Visualize your org's PR history as an interactive particle map
+### Visualize your org's pull request history as an interactive particle map
 
 > Created by **Caleb DeLeeuw** at **[Misfits & Machines](https://github.com/marketingarchitects)**
 >
@@ -8,19 +8,21 @@
 
 ---
 
-# NOTE: PR deep-dive detail panel now available — click any point in the scatter view for rich PR insights
+**Hodoscope AI** is an open-source developer analytics tool that turns your team's pull request (PR) history into a living, interactive scatter plot. Every merged, open, and closed PR becomes a glowing point on a 2D map — automatically grouped by how similar its lifecycle was to other PRs (using a technique called t-SNE). The result looks like a particle physics bubble chamber, but it's actually your team's engineering patterns made visible.
 
-**Hodoscope AI** turns pull request history into a living, breathing scatter plot. Each PR becomes a glowing point in a t-SNE-projected feature space — PRs with similar lifecycles cluster together naturally. The result looks like a particle physics bubble chamber, but it's your team's development flow.
+Whether you're an engineering leader wanting to spot bottlenecks, a developer curious about review patterns, or someone exploring the project for the first time — Hodoscope AI gives you an instant, intuitive picture of how code ships.
 
-**Works with GitHub + Azure DevOps. Runs in VS Code, Cursor, or standalone browser.**
+**Works with GitHub and Azure DevOps. Runs as a VS Code/Cursor extension or directly in your browser.**
+
+> 💡 **Tip:** Click any dot in the scatter view to open a full detail panel for that PR — timeline, reviewers, code size, and a direct link to open it in your browser.
 
 ## What it looks like
 
 <p align="center">
-  <img src="docs/scatter-preview.png" alt="Hodoscope AI — 136 PRs from GitHub and Azure DevOps visualized as a t-SNE scatter plot" width="100%">
+  <img src="https://github.com/user-attachments/assets/26aac82d-400c-47af-adb1-8721a8768fec" alt="Hodoscope AI — 136 PRs from GitHub and Azure DevOps visualized as a t-SNE scatter plot" width="100%">
 </p>
 
-*136 PRs across GitHub and Azure DevOps, projected into 2D via t-SNE. Each dot is a PR — color = author, ring = repo, size = event count. Density heatmap reveals behavioral clusters.*
+*136 PRs across GitHub and Azure DevOps, projected into 2D via t-SNE. Each dot is a PR — color = author, outer ring = repo, size = event count. The density heatmap reveals where PR activity concentrates.*
 
 - Dark canvas with **density heatmap** (Gaussian KDE) showing where PR activity concentrates
 - **Glowing dots** sized by event count, colored by author/status/provider/repo
@@ -153,7 +155,7 @@ Add the MCP server to your Claude Code config:
 ---
 
 <p align="center">
-  <img src="docs/misfits-logo.jpg" width="48">
+  <img src="https://github.com/user-attachments/assets/aa6a1ce7-d4a1-45ad-8f4f-73d9d82e2f7d" width="48">
   <br>
   <strong>Built by <a href="https://github.com/CalebDeLeeuwMisfits">Caleb DeLeeuw</a> at <a href="https://github.com/marketingarchitects">Misfits & Machines</a></strong>
 </p>
