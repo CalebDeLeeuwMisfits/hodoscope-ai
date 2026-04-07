@@ -641,6 +641,8 @@ export function generateScatterHTML(
     // ===== DRAW =====
     var hovered = null;
     var _repoLabelHits = []; // [{repo, x, y, w, h}] for click detection
+    var _hoveredLabelCluster = null; // labels being fanned out
+    var _labelMouseX = 0, _labelMouseY = 0;
 
     function draw() {
       // Background
@@ -762,33 +764,92 @@ export function generateScatterHTML(
 
       ctx.font = '9px "JetBrains Mono", "Fira Code", monospace';
       ctx.textAlign = 'center';
+
+      // Build label positions and detect overlaps
+      var labels = [];
       Object.keys(repoCentroids).forEach(function(repo) {
         var c = repoCentroids[repo];
         if (c.n < 2) return;
         var cx = c.sx / c.n;
         var cy = c.sy / c.n - 18;
-        var isActive = highlightedRepo === repo;
-
         var tw = ctx.measureText(repo).width + 10;
-        var lx = cx - tw/2, ly = cy - 8, lw = tw, lh = 16;
+        labels.push({ repo: repo, cx: cx, cy: cy, tw: tw, color: c.color });
+      });
 
-        // Background pill — brighter when active
-        ctx.fillStyle = isActive ? c.color + '30' : '#0a0a0fbb';
+      // When mouse is near overlapping labels, fan them out vertically
+      if (_hoveredLabelCluster) {
+        var cluster = _hoveredLabelCluster;
+        // Check if mouse is still near the cluster
+        var nearCluster = false;
+        for (var ci = 0; ci < cluster.length; ci++) {
+          var cl = cluster[ci];
+          if (Math.abs(_labelMouseX - cl.cx) < cl.tw && Math.abs(_labelMouseY - cl.cy) < 60) {
+            nearCluster = true; break;
+          }
+        }
+        if (!nearCluster) _hoveredLabelCluster = null;
+      }
+
+      // Detect overlap groups near the mouse
+      if (!_hoveredLabelCluster) {
+        for (var li = 0; li < labels.length; li++) {
+          var la = labels[li];
+          var lx1 = la.cx - la.tw/2, lx2 = la.cx + la.tw/2;
+          var ly1 = la.cy - 8, ly2 = la.cy + 8;
+          if (_labelMouseX >= lx1 - 20 && _labelMouseX <= lx2 + 20 && _labelMouseY >= ly1 - 20 && _labelMouseY <= ly2 + 20) {
+            // Find all labels overlapping with this one
+            var group = [la];
+            for (var lj = 0; lj < labels.length; lj++) {
+              if (li === lj) continue;
+              var lb = labels[lj];
+              var dx = Math.abs(la.cx - lb.cx);
+              var dy = Math.abs(la.cy - lb.cy);
+              if (dx < (la.tw + lb.tw) / 2 && dy < 18) group.push(lb);
+            }
+            if (group.length > 1) { _hoveredLabelCluster = group; break; }
+          }
+        }
+      }
+
+      // Apply fan-out offset to clustered labels
+      if (_hoveredLabelCluster) {
+        var fanGroup = _hoveredLabelCluster;
+        // Sort by original cy position
+        fanGroup.sort(function(a, b) { return a.cy - b.cy; });
+        var midY = 0;
+        for (var fi = 0; fi < fanGroup.length; fi++) midY += fanGroup[fi].cy;
+        midY /= fanGroup.length;
+        var spacing = 20;
+        var startY = midY - ((fanGroup.length - 1) * spacing) / 2;
+        for (var fi = 0; fi < fanGroup.length; fi++) {
+          fanGroup[fi]._fanY = startY + fi * spacing;
+        }
+      }
+
+      labels.forEach(function(l) {
+        var isActive = highlightedRepo === l.repo;
+        var isFanned = l._fanY !== undefined;
+        var drawY = isFanned ? l._fanY : l.cy;
+        var lx = l.cx - l.tw/2, ly = drawY - 8, lw = l.tw, lh = 16;
+
+        // Background pill
+        var bgAlpha = isFanned ? 'ee' : 'bb';
+        ctx.fillStyle = isActive ? l.color + '30' : '#0a0a0f' + bgAlpha;
         ctx.beginPath();
         ctx.roundRect(lx, ly, lw, lh, 4);
         ctx.fill();
 
-        // Border
-        ctx.strokeStyle = isActive ? c.color + 'ff' : c.color + '60';
-        ctx.lineWidth = isActive ? 1.5 : 0.5;
+        // Border — more visible when fanned
+        ctx.strokeStyle = isActive ? l.color + 'ff' : l.color + (isFanned ? 'cc' : '60');
+        ctx.lineWidth = isActive ? 1.5 : (isFanned ? 1 : 0.5);
         ctx.stroke();
 
         // Text
-        ctx.fillStyle = isActive ? c.color + 'ff' : c.color + 'cc';
-        ctx.fillText(repo, cx, cy + 3);
+        ctx.fillStyle = isActive ? l.color + 'ff' : l.color + (isFanned ? 'ff' : 'cc');
+        ctx.fillText(l.repo, l.cx, drawY + 3);
 
-        // Store hit area for click detection
-        _repoLabelHits.push({ repo: repo, x: lx, y: ly, w: lw, h: lh });
+        // Store hit area
+        _repoLabelHits.push({ repo: l.repo, x: lx, y: ly, w: lw, h: lh });
       });
       } // end showRepoLabels else block
 
@@ -800,6 +861,7 @@ export function generateScatterHTML(
     canvas.addEventListener('mousemove', function(e) {
       var rect = canvas.getBoundingClientRect();
       var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      _labelMouseX = mx; _labelMouseY = my;
       hovered = null;
       // Check repo label hover for cursor
       var overLabel = false;
