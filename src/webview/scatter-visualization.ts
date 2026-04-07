@@ -385,7 +385,7 @@ export function generateScatterHTML(
   </div>
 
   <div class="stats-bar">
-    <div class="stat"><div class="stat-val t">${stats.totalPRs}</div><div class="stat-lbl">Total PRs</div></div>
+    <div class="stat"><div class="stat-val t">${stats.totalPRs - (stats.repoCreatedCount || 0)}</div><div class="stat-lbl">Total PRs</div></div>
     <div class="stat"><div class="stat-val m">${stats.mergedPRs}</div><div class="stat-lbl">Merged</div></div>
     <div class="stat"><div class="stat-val o">${stats.openPRs}</div><div class="stat-lbl">Open</div></div>
     <div class="stat"><div class="stat-val c">${stats.closedPRs}</div><div class="stat-lbl">Closed</div></div>
@@ -556,13 +556,16 @@ export function generateScatterHTML(
     function buildLegend(vals, cmap) {
       var el = document.getElementById('legend');
       el.innerHTML = vals.map(function(v) {
-        var cnt = pts.filter(function(p) { return p[colorBy] === v; }).length;
-        var vis = pts.filter(function(p) { return p[colorBy] === v && isVisible(p); }).length;
+        var prPts = pts.filter(function(p) { return p[colorBy] === v && p.status !== 'repo_created'; });
+        var repoPts = pts.filter(function(p) { return p[colorBy] === v && p.status === 'repo_created'; });
+        var vis = prPts.filter(function(p) { return isVisible(p); }).length;
+        var cnt = prPts.length;
+        var repoCount = repoPts.length;
         var off = hidden[v] ? ' off' : '';
         return '<div class="leg-item' + off + '" data-v="' + esc(v) + '">' +
           '<span class="leg-dot" style="color:' + cmap[v] + ';background:' + cmap[v] + '"></span>' +
           '<span>' + esc(v) + '</span>' +
-          '<span class="leg-cnt">' + vis + '/' + cnt + '</span></div>';
+          '<span class="leg-cnt">' + vis + '/' + cnt + (repoCount > 0 ? ' <span style="color:#00d2d3;" title="Repos founded">◆' + repoCount + '</span>' : '') + '</span></div>';
       }).join('');
       el.querySelectorAll('.leg-item').forEach(function(item) {
         item.addEventListener('click', function() {
@@ -984,8 +987,9 @@ export function generateScatterHTML(
 
       var html = '<div class="key-title">Key: ' + modeLabel + '</div>';
       vals.slice(0, 8).forEach(function(v) {
-        var cnt = pts.filter(function(p) { return p[colorBy] === v; }).length;
-        html += '<div class="key-row"><span class="key-swatch" style="color:' + cmap[v] + ';background:' + cmap[v] + '"></span><span>' + esc(v) + '</span><span style="color:#8b949e;margin-left:auto;">' + cnt + '</span></div>';
+        var cnt = pts.filter(function(p) { return p[colorBy] === v && p.status !== 'repo_created'; }).length;
+        var repoCount = pts.filter(function(p) { return p[colorBy] === v && p.status === 'repo_created'; }).length;
+        html += '<div class="key-row"><span class="key-swatch" style="color:' + cmap[v] + ';background:' + cmap[v] + '"></span><span>' + esc(v) + '</span><span style="color:#8b949e;margin-left:auto;">' + cnt + (repoCount > 0 ? ' <span style="color:#00d2d3;">◆' + repoCount + '</span>' : '') + '</span></div>';
       });
       if (vals.length > 8) {
         html += '<div style="color:#484f58;padding-top:2px;">+' + (vals.length - 8) + ' more</div>';
