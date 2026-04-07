@@ -11,6 +11,7 @@ const mockListReviews = vi.fn();
 const mockListEvents = vi.fn();
 const mockListComments = vi.fn();
 const mockReposGet = vi.fn();
+const mockListContributors = vi.fn();
 
 vi.mock('@octokit/rest', () => ({
   Octokit: vi.fn(() => ({
@@ -25,6 +26,7 @@ vi.mock('@octokit/rest', () => ({
     },
     repos: {
       get: mockReposGet,
+      listContributors: mockListContributors,
     },
   })),
 }));
@@ -232,13 +234,14 @@ describe('GitHubFetcher', () => {
           html_url: 'https://github.com/org/repo',
         },
       });
+      mockListContributors.mockResolvedValueOnce({ data: [{ login: 'alice' }] });
 
       const traces = await fetcher.fetchPRs('org', 'repo');
       const repoTrace = traces.find(t => t.status === 'repo_created');
       expect(repoTrace).toBeDefined();
     });
 
-    it('repo_created trace has correct shape', async () => {
+    it('repo_created trace has correct shape with top contributor as author', async () => {
       mockPaginate.mockResolvedValueOnce([]);
       mockReposGet.mockResolvedValueOnce({
         data: {
@@ -246,6 +249,9 @@ describe('GitHubFetcher', () => {
           owner: { login: 'orgbot' },
           html_url: 'https://github.com/org/repo',
         },
+      });
+      mockListContributors.mockResolvedValueOnce({
+        data: [{ login: 'alice', contributions: 50 }],
       });
 
       const traces = await fetcher.fetchPRs('org', 'repo');
@@ -263,8 +269,24 @@ describe('GitHubFetcher', () => {
       expect(t.labels).toEqual([]);
       expect(t.reviewers).toEqual([]);
       expect(t.url).toBe('https://github.com/org/repo');
-      expect(t.author).toBe('orgbot');
+      expect(t.author).toBe('alice');
       expect(t.createdAt).toBe('2020-06-15T00:00:00Z');
+    });
+
+    it('falls back to owner when contributors API fails', async () => {
+      mockPaginate.mockResolvedValueOnce([]);
+      mockReposGet.mockResolvedValueOnce({
+        data: {
+          created_at: '2020-06-15T00:00:00Z',
+          owner: { login: 'orgbot' },
+          html_url: 'https://github.com/org/repo',
+        },
+      });
+      mockListContributors.mockRejectedValueOnce(new Error('Forbidden'));
+
+      const traces = await fetcher.fetchPRs('org', 'repo');
+      const t = traces.find(t => t.status === 'repo_created');
+      expect(t!.author).toBe('orgbot');
     });
 
     it('still works when repo metadata fetch fails', async () => {
