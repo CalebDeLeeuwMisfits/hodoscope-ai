@@ -1,4 +1,4 @@
-# <img src="https://github.com/user-attachments/assets/aa6a1ce7-d4a1-45ad-8f4f-73d9d82e2f7d" width="28" align="top"> Hodoscope AI
+# <img src="https://github.com/user-attachments/assets/aa6a1ce7-d4a1-45ad-8f4f-73d9d82e2f7d" width="28" align="top"> Hodoscope PR tracker
 
 ### Visualize your org's pull request history as an interactive particle map
 
@@ -8,7 +8,7 @@
 
 ---
 
-**Hodoscope AI** is an open-source developer analytics tool that turns your team's pull request (PR) history into a living, interactive scatter plot. Every merged, open, and closed PR becomes a glowing point on a 2D map — automatically grouped by how similar its lifecycle was to other PRs (using a technique called t-SNE). The result looks like a particle physics bubble chamber, but it's actually your team's engineering patterns made visible.
+**Hodoscope PR tracker** is an open-source developer analytics tool, based on Hodoscope AI agent telemetry system,that turns your team's pull request (PR) history into a living, interactive scatter plot. Every merged, open, and closed PR becomes a glowing point on a 2D map — automatically grouped by how similar its lifecycle was to other PRs (using a technique called t-SNE). The result looks like a particle physics bubble chamber, but it's actually your team's engineering patterns made visible.
 
 Whether you're an engineering leader wanting to spot bottlenecks, a developer curious about review patterns, or someone exploring the project for the first time — Hodoscope AI gives you an instant, intuitive picture of how code ships.
 
