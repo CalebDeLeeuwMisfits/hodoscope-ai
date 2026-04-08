@@ -1,6 +1,7 @@
 // NOTE: PR additions/deletions and description are surfaced in the scatter deep-dive detail panel
 import { Octokit } from '@octokit/rest';
 import type { PRTrace, TraceEvent, PRStatus, TraceEventType } from '../models/types';
+import { buildRepoCreatedTrace } from '../models/trace-factory';
 
 export interface FetchOptions {
   maxPRs?: number;
@@ -72,7 +73,34 @@ export class GitHubFetcher {
       });
     }
 
+    // Add synthetic repo creation trace
+    try {
+      const repoTrace = await this.fetchRepoCreation(owner, repo);
+      if (repoTrace) traces.push(repoTrace);
+    } catch { /* graceful degradation */ }
+
     return traces;
+  }
+
+  private async fetchRepoCreation(owner: string, repo: string): Promise<PRTrace | null> {
+    const { data } = await this.octokit.repos.get({ owner, repo });
+    // owner.login is the org for org-owned repos — try top contributor instead
+    let author = data.owner?.login || 'unknown';
+    try {
+      const { data: contributors } = await this.octokit.repos.listContributors({
+        owner, repo, per_page: 1,
+      });
+      if (contributors.length > 0 && contributors[0].login) {
+        author = contributors[0].login;
+      }
+    } catch { /* fall back to owner */ }
+    return buildRepoCreatedTrace(
+      'github',
+      `${owner}/${repo}`,
+      data.created_at || new Date().toISOString(),
+      author,
+      data.html_url
+    );
   }
 
   private determineStatus(pr: any): PRStatus {

@@ -122,44 +122,87 @@ async function main() {
   if (allTraces.length === 0) { console.log('No PRs found.'); process.exit(1); }
 
   // ===== FEATURE EXTRACTION & t-SNE =====
+  // Separate repo_created traces from PR traces (repo_created don't go through t-SNE)
+  const prTraces = allTraces.filter(t => t.status !== 'repo_created');
+  const repoCreatedTraces = allTraces.filter(t => t.status === 'repo_created');
+
   console.log('Extracting features...');
-  const featureMatrix = allTraces.map(extractFeatures);
+  const featureMatrix = prTraces.map(extractFeatures);
   const normalized = normalizeFeatures(featureMatrix);
 
   console.log('Computing t-SNE projection...');
-  const perplexity = Math.min(30, Math.max(2, Math.floor(allTraces.length / 4)));
+  const perplexity = Math.min(30, Math.max(2, Math.floor(prTraces.length / 4)));
   const projected = computeTSNE(normalized, {
     perplexity,
     maxIter: 500,
     learningRate: 200,
   });
 
-  // ===== BUILD SCATTER POINTS =====
-  const points: ScatterPoint[] = allTraces.map((t, i) => ({
-    id: t.id,
-    x: projected[i][0],
-    y: projected[i][1],
-    prNumber: t.prNumber,
-    title: t.title,
-    description: t.description,
-    author: t.author,
-    status: t.status,
-    provider: t.provider,
-    repoName: t.repoFullName.split('/').pop() || t.repoFullName,
-    sourceBranch: t.sourceBranch,
-    targetBranch: t.targetBranch,
-    url: t.url,
-    eventCount: t.events.length,
-    additions: t.additions,
-    deletions: t.deletions,
-    changedFiles: t.changedFiles,
-    createdAt: t.createdAt,
-    updatedAt: t.updatedAt,
-    mergedAt: t.mergedAt,
-    closedAt: t.closedAt,
-    labels: t.labels,
-    reviewers: t.reviewers,
-  }));
+  // ===== BUILD SCATTER POINTS (PRs first) =====
+  function countEvents(t: PRTrace) {
+    let reviews = 0, approvals = 0, comments = 0, timeline = 0;
+    for (const e of t.events) {
+      switch (e.type) {
+        case 'review_submitted': case 'changes_requested': reviews++; break;
+        case 'approved': approvals++; break;
+        case 'comment': comments++; break;
+        case 'label_added': case 'label_removed': case 'review_requested':
+        case 'reopened': case 'force_pushed': timeline++; break;
+      }
+    }
+    return { reviews, approvals, comments, timeline };
+  }
+
+  const traceToPoint = (t: PRTrace, x: number, y: number): ScatterPoint => {
+    const ec = countEvents(t);
+    return {
+      id: t.id,
+      x,
+      y,
+      prNumber: t.prNumber,
+      title: t.title,
+      description: t.description,
+      author: t.author,
+      status: t.status,
+      provider: t.provider,
+      repoName: t.repoFullName.split('/').pop() || t.repoFullName,
+      sourceBranch: t.sourceBranch,
+      targetBranch: t.targetBranch,
+      url: t.url,
+      eventCount: t.events.length,
+      additions: t.additions,
+      deletions: t.deletions,
+      changedFiles: t.changedFiles,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+      mergedAt: t.mergedAt,
+      closedAt: t.closedAt,
+      labels: t.labels,
+      reviewers: t.reviewers,
+      reviewCount: ec.reviews,
+      approvalCount: ec.approvals,
+      commentCount: ec.comments,
+      timelineEventCount: ec.timeline,
+    };
+  };
+
+  const points: ScatterPoint[] = prTraces.map((t, i) => traceToPoint(t, projected[i][0], projected[i][1]));
+
+  // Position repo_created diamonds at the centroid of their repo's PR cluster
+  const repoCentroids: Record<string, { sx: number; sy: number; n: number }> = {};
+  for (const p of points) {
+    if (!repoCentroids[p.repoName]) repoCentroids[p.repoName] = { sx: 0, sy: 0, n: 0 };
+    repoCentroids[p.repoName].sx += p.x;
+    repoCentroids[p.repoName].sy += p.y;
+    repoCentroids[p.repoName].n++;
+  }
+  for (const t of repoCreatedTraces) {
+    const repoName = t.repoFullName.split('/').pop() || t.repoFullName;
+    const c = repoCentroids[repoName];
+    const x = c ? c.sx / c.n : 0;
+    const y = c ? c.sy / c.n : 0;
+    points.push(traceToPoint(t, x, y));
+  }
 
   const stats = computeTraceStats(allTraces);
   console.log(`Stats: ${stats.totalPRs} PRs, ${stats.uniqueAuthors} authors, ${stats.mergedPRs} merged`);

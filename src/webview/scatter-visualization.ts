@@ -28,6 +28,11 @@ export interface ScatterPoint {
   closedAt?: string;
   labels: string[];
   reviewers: string[];
+  // Event breakdown counts
+  reviewCount?: number;
+  approvalCount?: number;
+  commentCount?: number;
+  timelineEventCount?: number;
   color?: string;
 }
 
@@ -123,6 +128,7 @@ export function generateScatterHTML(
     .stat-val.c { color: #EF553B; }
     .stat-val.t { color: #FFA15A; }
     .stat-val.a { color: #AB63FA; }
+    .stat-val.r { color: #00d2d3; }
     .stat-lbl { font-size: 8px; text-transform: uppercase; letter-spacing: 1.5px; color: #8b949e; margin-top: 2px; }
 
     /* ===== MAIN ===== */
@@ -384,11 +390,12 @@ export function generateScatterHTML(
   </div>
 
   <div class="stats-bar">
-    <div class="stat"><div class="stat-val t">${stats.totalPRs}</div><div class="stat-lbl">Total PRs</div></div>
+    <div class="stat"><div class="stat-val t">${stats.totalPRs - (stats.repoCreatedCount || 0)}</div><div class="stat-lbl">Total PRs</div></div>
     <div class="stat"><div class="stat-val m">${stats.mergedPRs}</div><div class="stat-lbl">Merged</div></div>
     <div class="stat"><div class="stat-val o">${stats.openPRs}</div><div class="stat-lbl">Open</div></div>
     <div class="stat"><div class="stat-val c">${stats.closedPRs}</div><div class="stat-lbl">Closed</div></div>
     <div class="stat"><div class="stat-val a">${stats.uniqueAuthors}</div><div class="stat-lbl">Authors</div></div>
+    <div class="stat"><div class="stat-val r">${stats.repoCreatedCount || 0}</div><div class="stat-lbl">Repos</div></div>
   </div>
 
   <div class="main">
@@ -554,13 +561,16 @@ export function generateScatterHTML(
     function buildLegend(vals, cmap) {
       var el = document.getElementById('legend');
       el.innerHTML = vals.map(function(v) {
-        var cnt = pts.filter(function(p) { return p[colorBy] === v; }).length;
-        var vis = pts.filter(function(p) { return p[colorBy] === v && isVisible(p); }).length;
+        var prPts = pts.filter(function(p) { return p[colorBy] === v && p.status !== 'repo_created'; });
+        var repoPts = pts.filter(function(p) { return p[colorBy] === v && p.status === 'repo_created'; });
+        var vis = prPts.filter(function(p) { return isVisible(p); }).length;
+        var cnt = prPts.length;
+        var repoCount = repoPts.length;
         var off = hidden[v] ? ' off' : '';
         return '<div class="leg-item' + off + '" data-v="' + esc(v) + '">' +
           '<span class="leg-dot" style="color:' + cmap[v] + ';background:' + cmap[v] + '"></span>' +
           '<span>' + esc(v) + '</span>' +
-          '<span class="leg-cnt">' + vis + '/' + cnt + '</span></div>';
+          '<span class="leg-cnt">' + vis + '/' + cnt + (repoCount > 0 ? ' <span style="color:#00d2d3;" title="Repos founded">◆' + repoCount + '</span>' : '') + '</span></div>';
       }).join('');
       el.querySelectorAll('.leg-item').forEach(function(item) {
         item.addEventListener('click', function() {
@@ -623,9 +633,21 @@ export function generateScatterHTML(
       ctx.drawImage(tmpCanvas, 0, 0, W, H);
     }
 
+    // ===== DIAMOND HELPER =====
+    function drawDiamond(cx, cy, size) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - size);
+      ctx.lineTo(cx + size, cy);
+      ctx.lineTo(cx, cy + size);
+      ctx.lineTo(cx - size, cy);
+      ctx.closePath();
+    }
+
     // ===== DRAW =====
     var hovered = null;
     var _repoLabelHits = []; // [{repo, x, y, w, h}] for click detection
+    var _hoveredLabelCluster = null; // labels being fanned out
+    var _labelMouseX = 0, _labelMouseY = 0;
 
     function draw() {
       // Background
@@ -676,7 +698,8 @@ export function generateScatterHTML(
           return;
         }
 
-        // Outer glow halo — extra bright when repo is highlighted
+        var isDiamond = p.status === 'repo_created';
+        // Outer glow halo (circular for both — looks natural behind diamond)
         var glowMult = isHighlit ? 1.5 : 1;
         var grd2 = ctx.createRadialGradient(px, py, 0, px, py, r * (isH ? 4 : 2.5) * glowMult);
         grd2.addColorStop(0, (isHighlit ? p._repoColor : p.color) + '60');
@@ -688,21 +711,33 @@ export function generateScatterHTML(
 
         // Repo indicator ring (always visible, brighter when highlighted)
         var ringAlpha = colorBy === 'repoName' ? '00' : (isHighlit ? 'ff' : 'aa');
-        ctx.beginPath();
-        ctx.arc(px, py, r * (isH ? 1.7 : 1.3), 0, Math.PI * 2);
+        if (isDiamond) {
+          drawDiamond(px, py, r * (isH ? 1.7 : 1.3));
+        } else {
+          ctx.beginPath();
+          ctx.arc(px, py, r * (isH ? 1.7 : 1.3), 0, Math.PI * 2);
+        }
         ctx.strokeStyle = p._repoColor + ringAlpha;
         ctx.lineWidth = isHighlit ? 3 : (isH ? 2.5 : 1.5);
         ctx.stroke();
 
-        // Core dot (primary color, or repo color when highlighted)
-        ctx.beginPath();
-        ctx.arc(px, py, r * (isH ? 1.4 : 1), 0, Math.PI * 2);
+        // Core shape (primary color, or repo color when highlighted)
+        if (isDiamond) {
+          drawDiamond(px, py, r * (isH ? 1.4 : 1));
+        } else {
+          ctx.beginPath();
+          ctx.arc(px, py, r * (isH ? 1.4 : 1), 0, Math.PI * 2);
+        }
         ctx.fillStyle = (isHighlit ? p._repoColor : p.color) + (isH ? 'ff' : 'cc');
         ctx.fill();
 
         // Bright center
-        ctx.beginPath();
-        ctx.arc(px, py, r * 0.4, 0, Math.PI * 2);
+        if (isDiamond) {
+          drawDiamond(px, py, r * 0.4);
+        } else {
+          ctx.beginPath();
+          ctx.arc(px, py, r * 0.4, 0, Math.PI * 2);
+        }
         ctx.fillStyle = isHighlit ? '#ffffffdd' : '#ffffffaa';
         ctx.fill();
 
@@ -734,33 +769,92 @@ export function generateScatterHTML(
 
       ctx.font = '9px "JetBrains Mono", "Fira Code", monospace';
       ctx.textAlign = 'center';
+
+      // Build label positions and detect overlaps
+      var labels = [];
       Object.keys(repoCentroids).forEach(function(repo) {
         var c = repoCentroids[repo];
         if (c.n < 2) return;
         var cx = c.sx / c.n;
         var cy = c.sy / c.n - 18;
-        var isActive = highlightedRepo === repo;
-
         var tw = ctx.measureText(repo).width + 10;
-        var lx = cx - tw/2, ly = cy - 8, lw = tw, lh = 16;
+        labels.push({ repo: repo, cx: cx, cy: cy, tw: tw, color: c.color });
+      });
 
-        // Background pill — brighter when active
-        ctx.fillStyle = isActive ? c.color + '30' : '#0a0a0fbb';
+      // When mouse is near overlapping labels, fan them out vertically
+      if (_hoveredLabelCluster) {
+        var cluster = _hoveredLabelCluster;
+        // Check if mouse is still near the cluster
+        var nearCluster = false;
+        for (var ci = 0; ci < cluster.length; ci++) {
+          var cl = cluster[ci];
+          if (Math.abs(_labelMouseX - cl.cx) < cl.tw && Math.abs(_labelMouseY - cl.cy) < 60) {
+            nearCluster = true; break;
+          }
+        }
+        if (!nearCluster) _hoveredLabelCluster = null;
+      }
+
+      // Detect overlap groups near the mouse
+      if (!_hoveredLabelCluster) {
+        for (var li = 0; li < labels.length; li++) {
+          var la = labels[li];
+          var lx1 = la.cx - la.tw/2, lx2 = la.cx + la.tw/2;
+          var ly1 = la.cy - 8, ly2 = la.cy + 8;
+          if (_labelMouseX >= lx1 - 20 && _labelMouseX <= lx2 + 20 && _labelMouseY >= ly1 - 20 && _labelMouseY <= ly2 + 20) {
+            // Find all labels overlapping with this one
+            var group = [la];
+            for (var lj = 0; lj < labels.length; lj++) {
+              if (li === lj) continue;
+              var lb = labels[lj];
+              var dx = Math.abs(la.cx - lb.cx);
+              var dy = Math.abs(la.cy - lb.cy);
+              if (dx < (la.tw + lb.tw) / 2 && dy < 18) group.push(lb);
+            }
+            if (group.length > 1) { _hoveredLabelCluster = group; break; }
+          }
+        }
+      }
+
+      // Apply fan-out offset to clustered labels
+      if (_hoveredLabelCluster) {
+        var fanGroup = _hoveredLabelCluster;
+        // Sort by original cy position
+        fanGroup.sort(function(a, b) { return a.cy - b.cy; });
+        var midY = 0;
+        for (var fi = 0; fi < fanGroup.length; fi++) midY += fanGroup[fi].cy;
+        midY /= fanGroup.length;
+        var spacing = 20;
+        var startY = midY - ((fanGroup.length - 1) * spacing) / 2;
+        for (var fi = 0; fi < fanGroup.length; fi++) {
+          fanGroup[fi]._fanY = startY + fi * spacing;
+        }
+      }
+
+      labels.forEach(function(l) {
+        var isActive = highlightedRepo === l.repo;
+        var isFanned = l._fanY !== undefined;
+        var drawY = isFanned ? l._fanY : l.cy;
+        var lx = l.cx - l.tw/2, ly = drawY - 8, lw = l.tw, lh = 16;
+
+        // Background pill
+        var bgAlpha = isFanned ? 'ee' : 'bb';
+        ctx.fillStyle = isActive ? l.color + '30' : '#0a0a0f' + bgAlpha;
         ctx.beginPath();
         ctx.roundRect(lx, ly, lw, lh, 4);
         ctx.fill();
 
-        // Border
-        ctx.strokeStyle = isActive ? c.color + 'ff' : c.color + '60';
-        ctx.lineWidth = isActive ? 1.5 : 0.5;
+        // Border — more visible when fanned
+        ctx.strokeStyle = isActive ? l.color + 'ff' : l.color + (isFanned ? 'cc' : '60');
+        ctx.lineWidth = isActive ? 1.5 : (isFanned ? 1 : 0.5);
         ctx.stroke();
 
         // Text
-        ctx.fillStyle = isActive ? c.color + 'ff' : c.color + 'cc';
-        ctx.fillText(repo, cx, cy + 3);
+        ctx.fillStyle = isActive ? l.color + 'ff' : l.color + (isFanned ? 'ff' : 'cc');
+        ctx.fillText(l.repo, l.cx, drawY + 3);
 
-        // Store hit area for click detection
-        _repoLabelHits.push({ repo: repo, x: lx, y: ly, w: lw, h: lh });
+        // Store hit area
+        _repoLabelHits.push({ repo: l.repo, x: lx, y: ly, w: lw, h: lh });
       });
       } // end showRepoLabels else block
 
@@ -772,6 +866,7 @@ export function generateScatterHTML(
     canvas.addEventListener('mousemove', function(e) {
       var rect = canvas.getBoundingClientRect();
       var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      _labelMouseX = mx; _labelMouseY = my;
       hovered = null;
       // Check repo label hover for cursor
       var overLabel = false;
@@ -790,10 +885,10 @@ export function generateScatterHTML(
       }
       if (hovered) {
         var p = hovered;
-        var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e'};
+        var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e',repo_created:'#00d2d3'};
         tip.innerHTML =
-          '<div class="tt-title">PR #' + p.prNumber + ': ' + esc(p.title) + '</div>' +
-          '<div class="tt-meta">' + esc(p.author) + ' &middot; ' + esc(p.repoName) + ' &middot; ' + p.sourceBranch + ' → ' + p.targetBranch + '</div>' +
+          '<div class="tt-title">' + (p.status === 'repo_created' ? '◆ ' + esc(p.title) : 'PR #' + p.prNumber + ': ' + esc(p.title)) + '</div>' +
+          '<div class="tt-meta">' + esc(p.author) + ' &middot; ' + esc(p.repoName) + (p.status !== 'repo_created' ? ' &middot; ' + p.sourceBranch + ' → ' + p.targetBranch : '') + '</div>' +
           '<div style="margin:4px 0"><span class="tt-badge" style="background:' + (statusColors[p.status]||'#8b949e') + '30;color:' + (statusColors[p.status]||'#8b949e') + '">' + p.status + '</span>' +
           ' <span class="tt-badge" style="background:#30363d;color:#c8d6e5">' + p.provider + '</span></div>' +
           '<div class="tt-row"><span>+' + p.additions + ' / -' + p.deletions + '</span><span>' + p.eventCount + ' events</span></div>' +
@@ -830,7 +925,7 @@ export function generateScatterHTML(
 
       if (!hovered) { detail.classList.remove('open'); return; }
       var p = hovered;
-      var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e'};
+      var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e',repo_created:'#00d2d3'};
       var totalChanges = p.additions + p.deletions;
       var addPct = totalChanges > 0 ? Math.round((p.additions / totalChanges) * 100) : 0;
       var delPct = totalChanges > 0 ? 100 - addPct : 0;
@@ -847,14 +942,14 @@ export function generateScatterHTML(
                         durationHrs < 24 ? Math.round(durationHrs) + 'h' :
                         Math.round(durationHrs / 24) + 'd';
 
-      var html = '<h3>PR #' + p.prNumber + '</h3>' +
+      var html = '<h3>' + (p.status === 'repo_created' ? '◆ Repo Created' : 'PR #' + p.prNumber) + '</h3>' +
         '<div style="font-size:12px;color:#e0e0e0;margin-bottom:4px;">' + esc(p.title) + '</div>' +
         '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">' +
         '<span class="tt-badge" style="background:' + (statusColors[p.status]||'#8b949e') + '30;color:' + (statusColors[p.status]||'#8b949e') + '">' + p.status + '</span>' +
         '<span class="tt-badge" style="background:#30363d;color:#c8d6e5">' + p.provider + '</span>' +
         '<span style="font-size:9px;color:#8b949e;">' + durationStr + '</span>' +
         '</div>' +
-        '<a class="detail-link" href="' + esc(p.url) + '" target="_blank" rel="noopener noreferrer">Open in ' + (p.provider === 'github' ? 'GitHub' : 'Azure DevOps') + ' &rarr;</a>';
+        '<a class="detail-link" href="' + esc(p.url) + '" target="_blank" rel="noopener noreferrer">' + (p.status === 'repo_created' ? 'View Repository' : 'Open in ' + (p.provider === 'github' ? 'GitHub' : 'Azure DevOps')) + ' &rarr;</a>';
 
       // Description
       if (p.description) {
@@ -889,7 +984,14 @@ export function generateScatterHTML(
         row('Author', esc(p.author)) +
         row('Repo', esc(p.repoName)) +
         row('Branch', esc(p.sourceBranch) + ' → ' + esc(p.targetBranch)) +
-        row('Events', p.eventCount) +
+        row('Events', p.eventCount +
+          (p.reviewCount || p.approvalCount || p.commentCount || p.timelineEventCount ?
+            ' <span style="font-size:9px;color:#8b949e;">(' +
+            [p.reviewCount ? p.reviewCount + ' reviews' : '',
+             p.approvalCount ? p.approvalCount + ' approvals' : '',
+             p.commentCount ? p.commentCount + ' comments' : '',
+             p.timelineEventCount ? p.timelineEventCount + ' timeline' : '']
+            .filter(function(s) { return s; }).join(', ') + ')</span>' : '')) +
         row('Reviewers', p.reviewers.map(function(r) { return esc(r); }).join(', ') || 'none') +
         row('Labels', p.labels.length > 0 ? p.labels.map(function(l) { return '<span class="tt-badge" style="background:#30363d;color:#c8d6e5;margin-left:2px;">' + esc(l) + '</span>'; }).join(' ') : '<span style="color:#484f58">none</span>');
 
@@ -959,8 +1061,9 @@ export function generateScatterHTML(
 
       var html = '<div class="key-title">Key: ' + modeLabel + '</div>';
       vals.slice(0, 8).forEach(function(v) {
-        var cnt = pts.filter(function(p) { return p[colorBy] === v; }).length;
-        html += '<div class="key-row"><span class="key-swatch" style="color:' + cmap[v] + ';background:' + cmap[v] + '"></span><span>' + esc(v) + '</span><span style="color:#8b949e;margin-left:auto;">' + cnt + '</span></div>';
+        var cnt = pts.filter(function(p) { return p[colorBy] === v && p.status !== 'repo_created'; }).length;
+        var repoCount = pts.filter(function(p) { return p[colorBy] === v && p.status === 'repo_created'; }).length;
+        html += '<div class="key-row"><span class="key-swatch" style="color:' + cmap[v] + ';background:' + cmap[v] + '"></span><span>' + esc(v) + '</span><span style="color:#8b949e;margin-left:auto;">' + cnt + (repoCount > 0 ? ' <span style="color:#00d2d3;">◆' + repoCount + '</span>' : '') + '</span></div>';
       });
       if (vals.length > 8) {
         html += '<div style="color:#484f58;padding-top:2px;">+' + (vals.length - 8) + ' more</div>';
