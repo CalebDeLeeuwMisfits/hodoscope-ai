@@ -95,7 +95,7 @@ export class AzureDevOpsFetcher {
     try {
       const repoInfo = await gitApi.getRepository(repo, project);
       if (repoInfo) {
-        const createdAt = repoInfo.dateCreated?.toISOString() || new Date().toISOString();
+        const createdAt = (repoInfo as any).dateCreated?.toISOString() || new Date().toISOString();
         const author = (repoInfo as any).createdBy?.displayName || 'unknown';
         const url = (repoInfo as any).webUrl || '';
         traces.push(buildRepoCreatedTrace(

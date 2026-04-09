@@ -1,4 +1,3 @@
-// NOTE: Projection output (x, y coords) determines scatter point placement for the deep-dive panel
 import { describe, it, expect } from 'vitest';
 import {
   extractFeatures,
@@ -104,25 +103,21 @@ describe('extractFeatures', () => {
     expect(extractFeatures(merged)).not.toEqual(extractFeatures(open));
   });
 
-  it('returns 18-element feature vector', () => {
-    const features = extractFeatures(makeTrace());
-    expect(features.length).toBe(18);
-  });
-
-  it('sets repo_created flag at index 17', () => {
+  it('sets repo_created flag at index 19', () => {
     const trace = makeTrace({ status: 'repo_created' });
     const features = extractFeatures(trace);
-    expect(features[17]).toBe(1);
+    expect(features[19]).toBe(1);
     // Other status flags should be 0
     expect(features[12]).toBe(0); // merged
     expect(features[13]).toBe(0); // open
     expect(features[14]).toBe(0); // closed
     expect(features[15]).toBe(0); // draft
+    expect(features[18]).toBe(0); // deferred
   });
 
   it('repo_created flag is 0 for non-repo_created statuses', () => {
     const features = extractFeatures(makeTrace({ status: 'merged' }));
-    expect(features[17]).toBe(0);
+    expect(features[19]).toBe(0);
   });
 
   it('returns consistent vector length across different traces', () => {
@@ -133,6 +128,39 @@ describe('extractFeatures', () => {
     ];
     const lengths = traces.map((t) => extractFeatures(t).length);
     expect(new Set(lengths).size).toBe(1); // all same length
+  });
+
+  it('returns 20-element feature vector', () => {
+    const features = extractFeatures(makeTrace());
+    expect(features).toHaveLength(20);
+  });
+
+  it('sets provider flags correctly for github', () => {
+    const features = extractFeatures(makeTrace({ provider: 'github' }));
+    expect(features[16]).toBe(1); // isGitHub
+    expect(features[17]).toBe(0); // isAzDO
+  });
+
+  it('sets provider flags correctly for azure-devops', () => {
+    const features = extractFeatures(makeTrace({ provider: 'azure-devops' }));
+    expect(features[16]).toBe(0); // isGitHub
+    expect(features[17]).toBe(1); // isAzDO
+  });
+
+  it('sets provider flags correctly for wrike', () => {
+    const features = extractFeatures(makeTrace({ provider: 'wrike' }));
+    expect(features[16]).toBe(0); // isGitHub
+    expect(features[17]).toBe(0); // isAzDO
+  });
+
+  it('sets deferred status flag', () => {
+    const features = extractFeatures(makeTrace({ status: 'deferred' }));
+    expect(features[18]).toBe(1); // isDeferred
+  });
+
+  it('deferred flag is 0 for non-deferred statuses', () => {
+    const features = extractFeatures(makeTrace({ status: 'merged' }));
+    expect(features[18]).toBe(0);
   });
 });
 

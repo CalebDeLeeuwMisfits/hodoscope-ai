@@ -10,7 +10,6 @@ export interface ScatterPoint {
   y: number; // t-SNE / PCA y
   prNumber: number;
   title: string;
-  description?: string;
   author: string;
   status: PRStatus;
   provider: SCMProvider;
@@ -23,9 +22,6 @@ export interface ScatterPoint {
   deletions: number;
   changedFiles: number;
   createdAt: string;
-  updatedAt?: string;
-  mergedAt?: string;
-  closedAt?: string;
   labels: string[];
   reviewers: string[];
   // Event breakdown counts
@@ -121,8 +117,8 @@ export function generateScatterHTML(
       border-bottom: 1px solid #21262d;
       flex-shrink: 0;
     }
-    .stat { flex: 1; text-align: center; padding: 8px 8px; background: #161b22; }
-    .stat-val { font-size: 22px; font-weight: 700; }
+    .stat { flex: 1; text-align: center; padding: 6px 8px; background: #161b22; }
+    .stat-val { font-size: 18px; font-weight: 700; }
     .stat-val.m { color: #00CC96; }
     .stat-val.o { color: #636EFA; }
     .stat-val.c { color: #EF553B; }
@@ -213,7 +209,7 @@ export function generateScatterHTML(
 
     /* Detail panel (click) */
     .detail {
-      position: absolute; right: 0; top: 0; bottom: 0; width: 360px;
+      position: absolute; right: 0; top: 0; bottom: 0; width: 320px;
       background: #0d1117ee; border-left: 1px solid #21262d;
       padding: 16px; overflow-y: auto; z-index: 50;
       transform: translateX(100%); transition: transform 0.2s ease;
@@ -226,37 +222,11 @@ export function generateScatterHTML(
       padding: 2px 8px; cursor: pointer; font-size: 10px;
     }
     .detail-close:hover { color: #e0e0e0; border-color: #636EFA; }
-    .detail h3 { font-size: 14px; margin-bottom: 4px; }
+    .detail h3 { font-size: 13px; margin-bottom: 8px; }
     .detail-row { display: flex; justify-content: space-between; font-size: 10px; color: #c8d6e5; padding: 3px 0; border-bottom: 1px solid #21262d; }
     .detail-label { color: #8b949e; }
-    .detail-link {
-      display: inline-block; color: #fff; text-decoration: none; font-size: 11px;
-      background: #636EFA; padding: 5px 14px; border-radius: 4px; margin-top: 4px;
-      transition: background 0.15s;
-    }
-    .detail-link:hover { background: #4f5bd5; }
-    .detail-desc {
-      font-size: 11px; color: #8b949e; line-height: 1.4; margin: 8px 0;
-      max-height: 80px; overflow-y: auto; padding: 6px 8px;
-      background: #161b22; border-radius: 4px; border: 1px solid #21262d;
-    }
-    .detail-section-title {
-      font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px;
-      color: #8b949e; margin: 12px 0 4px; padding-bottom: 3px;
-      border-bottom: 1px solid #21262d;
-    }
-    .change-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin: 6px 0; }
-    .change-bar .add { background: #00CC96; }
-    .change-bar .del { background: #EF553B; }
-    .timeline-row {
-      display: flex; align-items: center; gap: 8px; font-size: 10px; padding: 3px 0;
-    }
-    .timeline-dot {
-      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-    }
-    .timeline-line {
-      width: 1px; height: 10px; background: #21262d; margin-left: 2.5px;
-    }
+    .detail-link { color: #636EFA; text-decoration: none; font-size: 10px; }
+    .detail-link:hover { text-decoration: underline; }
 
     /* Toggle button */
     .toggle-labels {
@@ -269,108 +239,8 @@ export function generateScatterHTML(
     .toggle-labels.on { background: #636EFA18; border-color: #636EFA; color: #636EFA; }
     .toggle-labels .ico { font-size: 12px; }
 
-    /* How-to-read button */
-    .guide-btn {
-      position: absolute; top: 12px; right: 12px; z-index: 20;
-      background: #161b22; border: 1px solid #30363d; border-radius: 50%;
-      color: #8b949e; width: 28px; height: 28px; font-size: 14px; cursor: pointer;
-      font-family: inherit; transition: all 0.15s; display: flex; align-items: center; justify-content: center;
-    }
-    .guide-btn:hover { border-color: #636EFA; color: #e0e0e0; }
-
-    /* Guide overlay */
-    .guide-overlay {
-      position: absolute; top: 48px; right: 12px; z-index: 30;
-      background: #161b22ee; border: 1px solid #30363d; border-radius: 8px;
-      padding: 14px 16px; max-width: 320px; font-size: 11px; color: #c8d6e5;
-      backdrop-filter: blur(12px); box-shadow: 0 4px 24px #00000088;
-      display: none; line-height: 1.5;
-    }
-    .guide-overlay.vis { display: block; }
-    .guide-overlay h4 { font-size: 11px; color: #e0e0e0; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
-    .guide-overlay ul { margin: 0; padding-left: 16px; }
-    .guide-overlay li { margin-bottom: 4px; }
-    .guide-overlay .guide-close { float: right; background: none; border: none; color: #8b949e; cursor: pointer; font-size: 14px; }
-    .guide-overlay .guide-close:hover { color: #e0e0e0; }
-
-    /* Key table */
-    .key-table {
-      position: absolute; bottom: 12px; right: 12px; z-index: 20;
-      background: #161b22ee; border: 1px solid #30363d; border-radius: 6px;
-      padding: 8px 10px; font-size: 9px; color: #c8d6e5;
-      backdrop-filter: blur(8px); min-width: 120px;
-    }
-    .key-table .key-title {
-      font-size: 8px; text-transform: uppercase; letter-spacing: 1.5px;
-      color: #8b949e; margin-bottom: 4px; padding-bottom: 3px;
-      border-bottom: 1px solid #21262d;
-    }
-    .key-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
-    .key-swatch {
-      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-      box-shadow: 0 0 4px currentColor;
-    }
-    .key-ring {
-      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-      border: 1.5px solid; background: transparent;
-    }
-
     /* Empty */
     .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #484f58; }
-
-    /* ===== TIME-LAPSE CONTROLS ===== */
-    .timelapse-bar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 16px;
-      background: #0d1117;
-      border-top: 1px solid #21262d;
-      flex-shrink: 0;
-      font-size: 10px;
-    }
-    .tl-btn {
-      background: #161b22; border: 1px solid #30363d; border-radius: 4px;
-      color: #8b949e; padding: 3px 8px; cursor: pointer; font-size: 10px;
-      font-family: inherit; transition: all 0.15s; display: flex; align-items: center; gap: 4px;
-    }
-    .tl-btn:hover { border-color: #636EFA; color: #e0e0e0; }
-    .tl-btn.active { background: #636EFA20; border-color: #636EFA; color: #636EFA; }
-    .tl-slider {
-      flex: 1; height: 4px; -webkit-appearance: none; appearance: none;
-      background: #21262d; border-radius: 2px; outline: none; cursor: pointer;
-    }
-    .tl-slider::-webkit-slider-thumb {
-      -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
-      background: #636EFA; border: 2px solid #0d1117; cursor: pointer;
-      box-shadow: 0 0 6px #636EFA88;
-    }
-    .tl-slider::-moz-range-thumb {
-      width: 14px; height: 14px; border-radius: 50%;
-      background: #636EFA; border: 2px solid #0d1117; cursor: pointer;
-    }
-    .tl-date {
-      font-size: 11px; font-weight: 700; color: #e0e0e0; min-width: 90px; text-align: center;
-      font-variant-numeric: tabular-nums;
-    }
-    .tl-speed {
-      display: flex; gap: 2px;
-    }
-    .tl-speed-btn {
-      background: #161b22; border: 1px solid #30363d; border-radius: 3px;
-      color: #8b949e; padding: 2px 6px; cursor: pointer; font-size: 9px;
-      font-family: inherit; transition: all 0.15s;
-    }
-    .tl-speed-btn:hover { border-color: #636EFA; color: #e0e0e0; }
-    .tl-speed-btn.active { background: #636EFA20; border-color: #636EFA; color: #636EFA; }
-    .tl-count { color: #8b949e; font-size: 9px; min-width: 50px; text-align: right; }
-    .tl-live-btn {
-      background: #161b22; border: 1px solid #30363d; border-radius: 4px;
-      color: #8b949e; padding: 3px 10px; cursor: pointer; font-size: 10px;
-      font-family: inherit; transition: all 0.15s;
-    }
-    .tl-live-btn:hover { border-color: #00CC96; color: #00CC96; }
-    .tl-live-btn.live { background: #00CC9620; border-color: #00CC96; color: #00CC96; }
   </style>
 </head>
 <body>
@@ -402,23 +272,6 @@ export function generateScatterHTML(
     <div class="canvas-wrap">
       ${hasData ? '<canvas id="c"></canvas>' : '<div class="empty"><div style="font-size:36px;opacity:0.2;">&#9678;</div><div>No PR traces</div></div>'}
       ${hasData ? '<button class="toggle-labels on" id="toggle-labels"><span class="ico">&#9781;</span> Labels</button>' : ''}
-      ${hasData ? '<button class="guide-btn" id="guide-btn" title="How to read this">?</button>' : ''}
-      <div class="guide-overlay" id="guide-overlay">
-        <button class="guide-close" id="guide-close">&times;</button>
-        <h4>How to read this</h4>
-        <ul>
-          <li><strong>Each dot</strong> is a pull request — size = number of events</li>
-          <li><strong>Position</strong> is determined by t-SNE: PRs with similar lifecycles cluster together</li>
-          <li><strong>X axis</strong> (Complexity) reflects code size, file count, and duration</li>
-          <li><strong>Y axis</strong> (Collaboration) reflects reviews, comments, and contributors</li>
-          <li><strong>Color</strong> represents the active grouping (author, status, repo, or provider)</li>
-          <li><strong>Outer ring</strong> always shows which repo the PR belongs to</li>
-          <li><strong>Glow intensity</strong> around each cluster indicates PR density</li>
-          <li><strong>Hover</strong> any dot for details — <strong>click</strong> for the full panel</li>
-          <li><strong>Click a repo label</strong> to highlight that repo's PRs</li>
-        </ul>
-      </div>
-      ${hasData ? '<div class="key-table" id="key-table"></div>' : ''}
       <div class="tooltip" id="tip"></div>
       <div class="detail" id="detail">
         <button class="detail-close" id="detail-close">&times;</button>
@@ -443,20 +296,6 @@ export function generateScatterHTML(
       </div>
     </div>
   </div>
-
-  ${hasData ? `<div class="timelapse-bar" id="timelapse-bar">
-    <button class="tl-btn" id="tl-play" title="Play/Pause">&#9654;</button>
-    <input type="range" class="tl-slider" id="tl-slider" min="0" max="1000" value="1000">
-    <span class="tl-date" id="tl-date">Live</span>
-    <div class="tl-speed">
-      <button class="tl-speed-btn" data-speed="0.5">0.5x</button>
-      <button class="tl-speed-btn active" data-speed="1">1x</button>
-      <button class="tl-speed-btn" data-speed="2">2x</button>
-      <button class="tl-speed-btn" data-speed="4">4x</button>
-    </div>
-    <span class="tl-count" id="tl-count"></span>
-    <button class="tl-live-btn live" id="tl-live">&#9679; Live</button>
-  </div>` : ''}
 
   <script${nonceAttr}>
     window.__HODO_PTS__ = ${pointsJSON};
@@ -531,19 +370,6 @@ export function generateScatterHTML(
     var highlightedRepo = null; // when set, dims all non-matching dots
     var showRepoLabels = true; // toggle via bottom-left button
 
-    // ===== TIME-LAPSE STATE =====
-    var tlPlaying = false;
-    var tlSpeed = 1; // multiplier
-    var tlLive = true; // when true, show all PRs (no time filter)
-    // Compute time range from data
-    var _timestamps = pts.map(function(p) { return new Date(p.createdAt).getTime(); }).sort(function(a,b) { return a - b; });
-    var tlMinTime = _timestamps[0] || 0;
-    var tlMaxTime = _timestamps[_timestamps.length - 1] || Date.now();
-    var tlRange = tlMaxTime - tlMinTime || 1;
-    var tlCursor = tlMaxTime; // current position (epoch ms)
-    var tlStepMs = tlRange / 200; // each tick advances this much in simulated time
-    var _tlLastFrame = 0;
-
     // ===== COLORING =====
     var colorBy = 'author';
     var hidden = {};
@@ -587,11 +413,6 @@ export function generateScatterHTML(
         var s = searchTxt.toLowerCase();
         var hay = (p.title + ' ' + p.author + ' #' + p.prNumber + ' ' + p.repoName).toLowerCase();
         if (hay.indexOf(s) === -1) return false;
-      }
-      // Time-lapse filter
-      if (!tlLive) {
-        var t = new Date(p.createdAt).getTime();
-        if (t > tlCursor) return false;
       }
       return true;
     }
@@ -660,19 +481,6 @@ export function generateScatterHTML(
       grd.addColorStop(1, '#0a0a0f');
       ctx.fillStyle = grd;
       ctx.fillRect(0, 0, W, H);
-
-      // Axis labels
-      ctx.save();
-      ctx.font = '10px "JetBrains Mono", monospace';
-      ctx.fillStyle = '#484f5880';
-      ctx.textAlign = 'center';
-      ctx.fillText('Complexity \\u2192', W / 2, H - 8);
-      ctx.save();
-      ctx.translate(14, H / 2);
-      ctx.rotate(-Math.PI / 2);
-      ctx.fillText('Collaboration \\u2192', 0, 0);
-      ctx.restore();
-      ctx.restore();
 
       // Density
       drawDensity();
@@ -885,10 +693,13 @@ export function generateScatterHTML(
       }
       if (hovered) {
         var p = hovered;
-        var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e',repo_created:'#00d2d3'};
+        var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e',deferred:'#FFA15A',repo_created:'#00d2d3'};
+        var ttPrefix = p.status === 'repo_created' ? '◆ ' : (p.provider === 'wrike' ? 'Task ' : 'PR #');
+        var ttTitle = p.status === 'repo_created' ? esc(p.title) : ttPrefix + p.prNumber + ': ' + esc(p.title);
+        var showBranch = p.status !== 'repo_created' && p.provider !== 'wrike';
         tip.innerHTML =
-          '<div class="tt-title">' + (p.status === 'repo_created' ? '◆ ' + esc(p.title) : 'PR #' + p.prNumber + ': ' + esc(p.title)) + '</div>' +
-          '<div class="tt-meta">' + esc(p.author) + ' &middot; ' + esc(p.repoName) + (p.status !== 'repo_created' ? ' &middot; ' + p.sourceBranch + ' → ' + p.targetBranch : '') + '</div>' +
+          '<div class="tt-title">' + ttTitle + '</div>' +
+          '<div class="tt-meta">' + esc(p.author) + ' &middot; ' + esc(p.repoName) + (showBranch ? ' &middot; ' + p.sourceBranch + ' → ' + p.targetBranch : '') + '</div>' +
           '<div style="margin:4px 0"><span class="tt-badge" style="background:' + (statusColors[p.status]||'#8b949e') + '30;color:' + (statusColors[p.status]||'#8b949e') + '">' + p.status + '</span>' +
           ' <span class="tt-badge" style="background:#30363d;color:#c8d6e5">' + p.provider + '</span></div>' +
           '<div class="tt-row"><span>+' + p.additions + ' / -' + p.deletions + '</span><span>' + p.eventCount + ' events</span></div>' +
@@ -925,77 +736,34 @@ export function generateScatterHTML(
 
       if (!hovered) { detail.classList.remove('open'); return; }
       var p = hovered;
-      var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e',repo_created:'#00d2d3'};
-      var totalChanges = p.additions + p.deletions;
-      var addPct = totalChanges > 0 ? Math.round((p.additions / totalChanges) * 100) : 0;
-      var delPct = totalChanges > 0 ? 100 - addPct : 0;
-
-      // Duration calculation
-      var created = new Date(p.createdAt);
-      var updated = p.updatedAt ? new Date(p.updatedAt) : null;
-      var merged = p.mergedAt ? new Date(p.mergedAt) : null;
-      var closed = p.closedAt ? new Date(p.closedAt) : null;
-      var endDate = merged || closed || updated || created;
-      var durationMs = endDate.getTime() - created.getTime();
-      var durationHrs = durationMs / (1000 * 60 * 60);
-      var durationStr = durationHrs < 1 ? Math.round(durationHrs * 60) + 'm' :
-                        durationHrs < 24 ? Math.round(durationHrs) + 'h' :
-                        Math.round(durationHrs / 24) + 'd';
-
-      var html = '<h3>' + (p.status === 'repo_created' ? '◆ Repo Created' : 'PR #' + p.prNumber) + '</h3>' +
-        '<div style="font-size:12px;color:#e0e0e0;margin-bottom:4px;">' + esc(p.title) + '</div>' +
-        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">' +
-        '<span class="tt-badge" style="background:' + (statusColors[p.status]||'#8b949e') + '30;color:' + (statusColors[p.status]||'#8b949e') + '">' + p.status + '</span>' +
-        '<span class="tt-badge" style="background:#30363d;color:#c8d6e5">' + p.provider + '</span>' +
-        '<span style="font-size:9px;color:#8b949e;">' + durationStr + '</span>' +
-        '</div>' +
-        '<a class="detail-link" href="' + esc(p.url) + '" target="_blank" rel="noopener noreferrer">' + (p.status === 'repo_created' ? 'View Repository' : 'Open in ' + (p.provider === 'github' ? 'GitHub' : 'Azure DevOps')) + ' &rarr;</a>';
-
-      // Description
-      if (p.description) {
-        html += '<div class="detail-desc">' + esc(p.description) + '</div>';
-      }
-
-      // Changes section
-      html += '<div class="detail-section-title">Changes</div>' +
-        '<div class="change-bar"><div class="add" style="width:' + addPct + '%"></div><div class="del" style="width:' + delPct + '%"></div></div>' +
-        '<div style="display:flex;justify-content:space-between;font-size:10px;">' +
-        '<span style="color:#00CC96;">+' + p.additions + ' added</span>' +
-        '<span style="color:#EF553B;">-' + p.deletions + ' deleted</span>' +
-        '<span style="color:#8b949e;">' + p.changedFiles + ' files</span></div>';
-
-      // Timeline section
-      html += '<div class="detail-section-title">Timeline</div>';
-      var events = [];
-      events.push({ date: created, label: 'Created', color: '#636EFA' });
-      if (merged) events.push({ date: merged, label: 'Merged', color: '#00CC96' });
-      else if (closed) events.push({ date: closed, label: 'Closed', color: '#EF553B' });
-      if (updated && updated.getTime() !== created.getTime() && (!merged || updated.getTime() !== merged.getTime())) {
-        events.push({ date: updated, label: 'Last updated', color: '#8b949e' });
-      }
-      events.sort(function(a, b) { return a.date.getTime() - b.date.getTime(); });
-      events.forEach(function(ev, idx) {
-        if (idx > 0) html += '<div class="timeline-line"></div>';
-        html += '<div class="timeline-row"><span class="timeline-dot" style="background:' + ev.color + '"></span><span style="color:#c8d6e5;">' + ev.label + '</span><span style="color:#8b949e;margin-left:auto;">' + ev.date.toLocaleDateString() + '</span></div>';
-      });
-
-      // Details section
-      html += '<div class="detail-section-title">Details</div>' +
-        row('Author', esc(p.author)) +
-        row('Repo', esc(p.repoName)) +
-        row('Branch', esc(p.sourceBranch) + ' → ' + esc(p.targetBranch)) +
-        row('Events', p.eventCount +
-          (p.reviewCount || p.approvalCount || p.commentCount || p.timelineEventCount ?
-            ' <span style="font-size:9px;color:#8b949e;">(' +
-            [p.reviewCount ? p.reviewCount + ' reviews' : '',
-             p.approvalCount ? p.approvalCount + ' approvals' : '',
-             p.commentCount ? p.commentCount + ' comments' : '',
-             p.timelineEventCount ? p.timelineEventCount + ' timeline' : '']
-            .filter(function(s) { return s; }).join(', ') + ')</span>' : '')) +
-        row('Reviewers', p.reviewers.map(function(r) { return esc(r); }).join(', ') || 'none') +
-        row('Labels', p.labels.length > 0 ? p.labels.map(function(l) { return '<span class="tt-badge" style="background:#30363d;color:#c8d6e5;margin-left:2px;">' + esc(l) + '</span>'; }).join(' ') : '<span style="color:#484f58">none</span>');
-
-      detailBody.innerHTML = html;
+      var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e',deferred:'#FFA15A',repo_created:'#00d2d3'};
+      var detailPrefix = p.status === 'repo_created' ? '◆ Repo Created' : (p.provider === 'wrike' ? 'Task ' : 'PR #') + p.prNumber;
+      var providerName = p.provider === 'github' ? 'GitHub' : p.provider === 'azure-devops' ? 'Azure DevOps' : 'Wrike';
+      var linkText = p.status === 'repo_created' ? 'View Repository' : 'Open in ' + providerName;
+      var branchRow = p.status === 'repo_created' ? '' : (p.provider === 'wrike' ? row('Project', p.targetBranch) : row('Branch', p.sourceBranch + ' → ' + p.targetBranch));
+      var evtBreakdown = (p.reviewCount || p.approvalCount || p.commentCount || p.timelineEventCount) ?
+        ' <span style="font-size:9px;color:#8b949e;">(' +
+        [p.reviewCount ? p.reviewCount + ' reviews' : '',
+         p.approvalCount ? p.approvalCount + ' approvals' : '',
+         p.commentCount ? p.commentCount + ' comments' : '',
+         p.timelineEventCount ? p.timelineEventCount + ' timeline' : '']
+        .filter(function(s) { return s; }).join(', ') + ')</span>' : '';
+      detailBody.innerHTML =
+        '<h3>' + detailPrefix + '</h3>' +
+        '<div style="margin-bottom:8px;font-size:12px;color:#e0e0e0;">' + esc(p.title) + '</div>' +
+        '<a class="detail-link" href="' + esc(p.url) + '" target="_blank" rel="noopener noreferrer">' + linkText + ' &rarr;</a>' +
+        '<div style="margin-top:12px;">' +
+        row('Status', '<span class="tt-badge" style="background:' + (statusColors[p.status]||'#8b949e') + '30;color:' + (statusColors[p.status]||'#8b949e') + '">' + p.status + '</span>') +
+        row('Author', p.author) +
+        row('Provider', p.provider) +
+        row('Repo', p.repoName) +
+        branchRow +
+        row('Changes', '+' + p.additions + ' / -' + p.deletions + ' (' + p.changedFiles + ' files)') +
+        row('Events', p.eventCount + evtBreakdown) +
+        row('Created', new Date(p.createdAt).toLocaleString()) +
+        row('Reviewers', p.reviewers.join(', ') || 'none') +
+        row('Labels', p.labels.join(', ') || 'none') +
+        '</div>';
       detail.classList.add('open');
     });
     document.getElementById('detail-close').addEventListener('click', function() {
@@ -1014,7 +782,6 @@ export function generateScatterHTML(
         colorBy = this.dataset.c;
         hidden = {};
         recolor();
-        buildKeyTable();
       });
     });
 
@@ -1187,8 +954,6 @@ export function generateScatterHTML(
 
     // ===== INIT =====
     recolor();
-    buildKeyTable();
-    updateTlUI();
     draw();
   }
   </script>

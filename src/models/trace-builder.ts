@@ -46,6 +46,7 @@ const EVENT_LAYER: Record<TraceEventType, number> = {
   ci_failed: 4.5,
   label_added: 5,
   label_removed: 5,
+  status_changed: 5.5,
   merged: 6,
   closed: 6,
   reopened: 0.5,
