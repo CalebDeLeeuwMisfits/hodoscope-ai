@@ -20,7 +20,7 @@ export class WrikeFetcher {
       headers: { Authorization: `Bearer ${this.token}` },
     });
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
+      const body = await res.json().catch(() => ({})) as { error?: string };
       throw new Error(`Wrike API error ${res.status}: ${body.error || 'Unknown'}`);
     }
     return res.json();
