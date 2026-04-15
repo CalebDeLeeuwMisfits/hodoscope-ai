@@ -239,6 +239,50 @@ export function generateScatterHTML(
     .toggle-labels.on { background: #636EFA18; border-color: #636EFA; color: #636EFA; }
     .toggle-labels .ico { font-size: 12px; }
 
+    /* Timeline bar */
+    .timeline-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: #0d1117;
+      border-bottom: 1px solid #21262d;
+      flex-shrink: 0;
+    }
+    .tl-play, .tl-live {
+      padding: 3px 8px; background: #161b22; border: 1px solid #30363d;
+      border-radius: 4px; color: #8b949e; font-size: 11px; cursor: pointer;
+      font-family: inherit; transition: all 0.15s; min-width: 28px; text-align: center;
+    }
+    .tl-play:hover, .tl-live:hover { border-color: #636EFA; color: #e0e0e0; }
+    .tl-live.live { background: #00CC9620; border-color: #00CC96; color: #00CC96; }
+    .tl-slider {
+      flex: 1;
+      -webkit-appearance: none; appearance: none;
+      height: 4px; background: #21262d; border-radius: 2px; outline: none;
+      cursor: pointer;
+    }
+    .tl-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #636EFA; cursor: pointer; border: 2px solid #0d1117;
+      box-shadow: 0 0 6px #636EFA88;
+    }
+    .tl-slider::-moz-range-thumb {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #636EFA; cursor: pointer; border: 2px solid #0d1117;
+    }
+    .tl-date { font-size: 10px; color: #e0e0e0; min-width: 90px; text-align: center; }
+    .tl-count { font-size: 9px; color: #8b949e; min-width: 60px; text-align: center; }
+    .tl-speed-btns { display: flex; gap: 2px; }
+    .tl-speed-btn {
+      padding: 2px 6px; background: #161b22; border: 1px solid #30363d;
+      border-radius: 3px; color: #8b949e; font-size: 9px; cursor: pointer;
+      font-family: inherit; transition: all 0.15s;
+    }
+    .tl-speed-btn:hover { border-color: #636EFA; color: #e0e0e0; }
+    .tl-speed-btn.active { background: #636EFA20; border-color: #636EFA; color: #636EFA; }
+
     /* Empty */
     .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #484f58; }
   </style>
@@ -267,6 +311,20 @@ export function generateScatterHTML(
     <div class="stat"><div class="stat-val a">${stats.uniqueAuthors}</div><div class="stat-lbl">Authors</div></div>
     <div class="stat"><div class="stat-val r">${stats.repoCreatedCount || 0}</div><div class="stat-lbl">Repos</div></div>
   </div>
+
+  ${hasData ? '<div class="timeline-bar">' +
+    '<button class="tl-play" id="tl-play" title="Play/Pause">&#9654;</button>' +
+    '<input type="range" class="tl-slider" id="tl-slider" min="0" max="1000" value="1000">' +
+    '<span class="tl-date" id="tl-date">Live</span>' +
+    '<span class="tl-count" id="tl-count"></span>' +
+    '<div class="tl-speed-btns">' +
+      '<button class="tl-speed-btn" data-speed="0.5">½×</button>' +
+      '<button class="tl-speed-btn active" data-speed="1">1×</button>' +
+      '<button class="tl-speed-btn" data-speed="2">2×</button>' +
+      '<button class="tl-speed-btn" data-speed="4">4×</button>' +
+    '</div>' +
+    '<button class="tl-live" id="tl-live" title="Jump to live (show all)">Live</button>' +
+  '</div>' : ''}
 
   <div class="main">
     <div class="canvas-wrap">
@@ -375,6 +433,20 @@ export function generateScatterHTML(
     var hidden = {};
     var searchTxt = '';
 
+    // ===== TIMELINE STATE =====
+    var tlTimes = pts.map(function(p) { return new Date(p.createdAt).getTime(); }).filter(function(t) { return !isNaN(t); });
+    tlTimes.sort(function(a, b) { return a - b; });
+    var tlMinTime = tlTimes[0] || 0;
+    var tlMaxTime = tlTimes[tlTimes.length - 1] || 0;
+    var tlRange = tlMaxTime - tlMinTime || 1;
+    var tlLive = true;
+    var tlCursor = tlMaxTime;
+    var tlPlaying = false;
+    var tlSpeed = 1;
+    // Step: each animation frame at 1× covers ~1 day of simulated time
+    var tlStepMs = tlRange / 200;
+    var _tlLastFrame = 0;
+
     function recolor() {
       var vals = [];
       pts.forEach(function(p) { if (vals.indexOf(p[colorBy]) === -1) vals.push(p[colorBy]); });
@@ -413,6 +485,11 @@ export function generateScatterHTML(
         var s = searchTxt.toLowerCase();
         var hay = (p.title + ' ' + p.author + ' #' + p.prNumber + ' ' + p.repoName).toLowerCase();
         if (hay.indexOf(s) === -1) return false;
+      }
+      // Timeline filter: hide points created after the cursor
+      if (!tlLive) {
+        var t = new Date(p.createdAt).getTime();
+        if (!isNaN(t) && t > tlCursor) return false;
       }
       return true;
     }

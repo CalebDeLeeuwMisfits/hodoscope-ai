@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "hodoscope": {
+      "command": "npx",
+      "args": ["tsx", "claude-extension/server.ts"],
+      "env": {}
+    }
+  }
+}
