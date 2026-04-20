@@ -256,23 +256,51 @@ export function generateScatterHTML(
     }
     .tl-play:hover, .tl-live:hover { border-color: #636EFA; color: #e0e0e0; }
     .tl-live.live { background: #00CC9620; border-color: #00CC96; color: #00CC96; }
-    .tl-slider {
-      flex: 1;
-      -webkit-appearance: none; appearance: none;
-      height: 4px; background: #21262d; border-radius: 2px; outline: none;
-      cursor: pointer;
+    .tl-range-wrap {
+      flex: 1; position: relative; height: 14px;
+      display: flex; align-items: center;
     }
+    .tl-range-track {
+      position: absolute; left: 0; right: 0; top: 50%;
+      transform: translateY(-50%);
+      height: 4px; background: #21262d; border-radius: 2px;
+      pointer-events: none;
+    }
+    .tl-range-fill {
+      position: absolute; top: 50%;
+      transform: translateY(-50%);
+      height: 4px; background: #636EFA55; border-radius: 2px;
+      pointer-events: none;
+    }
+    .tl-slider {
+      position: absolute; top: 0; left: 0; width: 100%;
+      height: 14px; background: transparent;
+      -webkit-appearance: none; appearance: none;
+      pointer-events: none; margin: 0;
+    }
+    .tl-slider::-webkit-slider-runnable-track { background: transparent; height: 14px; }
+    .tl-slider::-moz-range-track { background: transparent; height: 14px; }
     .tl-slider::-webkit-slider-thumb {
       -webkit-appearance: none; appearance: none;
+      pointer-events: auto;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #636EFA; cursor: pointer; border: 2px solid #0d1117;
+      box-shadow: 0 0 6px #636EFA88;
+      margin-top: 0;
+    }
+    .tl-slider::-moz-range-thumb {
+      pointer-events: auto;
       width: 14px; height: 14px; border-radius: 50%;
       background: #636EFA; cursor: pointer; border: 2px solid #0d1117;
       box-shadow: 0 0 6px #636EFA88;
     }
-    .tl-slider::-moz-range-thumb {
-      width: 14px; height: 14px; border-radius: 50%;
-      background: #636EFA; cursor: pointer; border: 2px solid #0d1117;
+    .tl-slider-lower::-webkit-slider-thumb {
+      background: #FFA15A; box-shadow: 0 0 6px #FFA15A88;
     }
-    .tl-date { font-size: 10px; color: #e0e0e0; min-width: 90px; text-align: center; }
+    .tl-slider-lower::-moz-range-thumb {
+      background: #FFA15A; box-shadow: 0 0 6px #FFA15A88;
+    }
+    .tl-date { font-size: 10px; color: #e0e0e0; min-width: 150px; text-align: center; }
     .tl-count { font-size: 9px; color: #8b949e; min-width: 60px; text-align: center; }
     .tl-speed-btns { display: flex; gap: 2px; }
     .tl-speed-btn {
@@ -314,7 +342,12 @@ export function generateScatterHTML(
 
   ${hasData ? '<div class="timeline-bar">' +
     '<button class="tl-play" id="tl-play" title="Play/Pause">&#9654;</button>' +
-    '<input type="range" class="tl-slider" id="tl-slider" min="0" max="1000" value="1000">' +
+    '<div class="tl-range-wrap">' +
+      '<div class="tl-range-track"></div>' +
+      '<div class="tl-range-fill" id="tl-range-fill"></div>' +
+      '<input type="range" class="tl-slider tl-slider-lower" id="tl-slider-min" min="0" max="1000" value="0" title="Drag to hide items older than this date">' +
+      '<input type="range" class="tl-slider" id="tl-slider" min="0" max="1000" value="1000" title="Drag or click Play to animate forward">' +
+    '</div>' +
     '<span class="tl-date" id="tl-date">Live</span>' +
     '<span class="tl-count" id="tl-count"></span>' +
     '<div class="tl-speed-btns">' +
@@ -323,7 +356,7 @@ export function generateScatterHTML(
       '<button class="tl-speed-btn" data-speed="2">2×</button>' +
       '<button class="tl-speed-btn" data-speed="4">4×</button>' +
     '</div>' +
-    '<button class="tl-live" id="tl-live" title="Jump to live (show all)">Live</button>' +
+    '<button class="tl-live" id="tl-live" title="Jump to live (reset window)">Live</button>' +
   '</div>' : ''}
 
   <div class="main">
@@ -439,8 +472,14 @@ export function generateScatterHTML(
     var tlMinTime = tlTimes[0] || 0;
     var tlMaxTime = tlTimes[tlTimes.length - 1] || 0;
     var tlRange = tlMaxTime - tlMinTime || 1;
+    // Upper handle (end of window). tlLive = true means pinned to tlMaxTime and
+    // no upper-bound filtering. Playback animates this handle.
     var tlLive = true;
     var tlCursor = tlMaxTime;
+    // Lower handle (start of window). Independent of tlLive; once moved off
+    // tlMinTime it hides older points even in "Live" mode. Playback does not
+    // touch this value.
+    var tlLowerCursor = tlMinTime;
     var tlPlaying = false;
     var tlSpeed = 1;
     // Step: each animation frame at 1× covers ~1 day of simulated time
@@ -486,10 +525,13 @@ export function generateScatterHTML(
         var hay = (p.title + ' ' + p.author + ' #' + p.prNumber + ' ' + p.repoName).toLowerCase();
         if (hay.indexOf(s) === -1) return false;
       }
-      // Timeline filter: hide points created after the cursor
-      if (!tlLive) {
-        var t = new Date(p.createdAt).getTime();
-        if (!isNaN(t) && t > tlCursor) return false;
+      // Timeline filter: restrict to [tlLowerCursor, tlCursor].
+      // Lower bound always applies (independent of Live). Upper bound only
+      // applies when not Live (playback or manual scrub).
+      var t = new Date(p.createdAt).getTime();
+      if (!isNaN(t)) {
+        if (t < tlLowerCursor) return false;
+        if (!tlLive && t > tlCursor) return false;
       }
       return true;
     }
@@ -929,26 +971,35 @@ export function generateScatterHTML(
 
     // ===== TIME-LAPSE CONTROLS =====
     var tlSlider = document.getElementById('tl-slider');
+    var tlSliderMin = document.getElementById('tl-slider-min');
+    var tlFillEl = document.getElementById('tl-range-fill');
     var tlDateEl = document.getElementById('tl-date');
     var tlCountEl = document.getElementById('tl-count');
     var tlPlayBtn = document.getElementById('tl-play');
     var tlLiveBtn = document.getElementById('tl-live');
 
+    function fmtDate(ms) {
+      return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
     function updateTlUI() {
       if (!tlSlider) return;
-      if (tlLive) {
-        tlSlider.value = '1000';
-        tlDateEl.textContent = 'Live';
-        tlLiveBtn.classList.add('live');
-        tlCountEl.textContent = pts.filter(isVisible).length + ' / ' + pts.length;
-      } else {
-        var pct = (tlCursor - tlMinTime) / tlRange;
-        tlSlider.value = String(Math.round(pct * 1000));
-        var d = new Date(tlCursor);
-        tlDateEl.textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        tlLiveBtn.classList.remove('live');
-        tlCountEl.textContent = pts.filter(isVisible).length + ' / ' + pts.length;
+      var lowerPct = (tlLowerCursor - tlMinTime) / tlRange;
+      var upperPct = tlLive ? 1 : (tlCursor - tlMinTime) / tlRange;
+      if (tlSliderMin) tlSliderMin.value = String(Math.round(lowerPct * 1000));
+      tlSlider.value = String(Math.round(upperPct * 1000));
+      if (tlFillEl) {
+        tlFillEl.style.left = (lowerPct * 100) + '%';
+        tlFillEl.style.right = ((1 - upperPct) * 100) + '%';
       }
+      var rightLabel = tlLive ? 'Live' : fmtDate(tlCursor);
+      var leftFiltered = tlLowerCursor > tlMinTime + 1;
+      tlDateEl.textContent = leftFiltered
+        ? fmtDate(tlLowerCursor) + ' → ' + rightLabel
+        : rightLabel;
+      if (tlLive && !leftFiltered) tlLiveBtn.classList.add('live');
+      else tlLiveBtn.classList.remove('live');
+      tlCountEl.textContent = pts.filter(isVisible).length + ' / ' + pts.length;
     }
 
     function tlTick(now) {
@@ -973,9 +1024,9 @@ export function generateScatterHTML(
     if (tlPlayBtn) {
       tlPlayBtn.addEventListener('click', function() {
         if (tlLive) {
-          // Start playback from beginning
+          // Start playback from the lower cursor (respects date-range window)
           tlLive = false;
-          tlCursor = tlMinTime;
+          tlCursor = tlLowerCursor;
           tlPlaying = true;
           _tlLastFrame = 0;
           this.innerHTML = '&#9646;&#9646;';
@@ -988,7 +1039,7 @@ export function generateScatterHTML(
           this.innerHTML = '&#9654;';
         } else {
           // Resume
-          if (tlCursor >= tlMaxTime) tlCursor = tlMinTime;
+          if (tlCursor >= tlMaxTime) tlCursor = tlLowerCursor;
           tlPlaying = true;
           _tlLastFrame = 0;
           this.innerHTML = '&#9646;&#9646;';
@@ -997,6 +1048,9 @@ export function generateScatterHTML(
       });
     }
 
+    // Minimum gap (epoch ms) between lower and upper handles to keep them draggable.
+    var tlHandleGap = Math.max(tlRange * 0.01, 1);
+
     if (tlSlider) {
       tlSlider.addEventListener('input', function() {
         tlLive = false;
@@ -1004,6 +1058,23 @@ export function generateScatterHTML(
         if (tlPlayBtn) tlPlayBtn.innerHTML = '&#9654;';
         var pct = parseInt(this.value) / 1000;
         tlCursor = tlMinTime + pct * tlRange;
+        if (tlCursor < tlLowerCursor + tlHandleGap) tlCursor = tlLowerCursor + tlHandleGap;
+        if (tlCursor > tlMaxTime) tlCursor = tlMaxTime;
+        updateTlUI();
+        recolor();
+      });
+    }
+
+    if (tlSliderMin) {
+      tlSliderMin.addEventListener('input', function() {
+        var pct = parseInt(this.value) / 1000;
+        tlLowerCursor = tlMinTime + pct * tlRange;
+        // Clamp so the two handles never cross
+        var upperBound = tlLive ? tlMaxTime : tlCursor;
+        if (tlLowerCursor > upperBound - tlHandleGap) {
+          tlLowerCursor = upperBound - tlHandleGap;
+        }
+        if (tlLowerCursor < tlMinTime) tlLowerCursor = tlMinTime;
         updateTlUI();
         recolor();
       });
@@ -1011,9 +1082,11 @@ export function generateScatterHTML(
 
     if (tlLiveBtn) {
       tlLiveBtn.addEventListener('click', function() {
+        // Reset window: pin upper to live AND release the lower cutoff.
         tlLive = true;
         tlPlaying = false;
         tlCursor = tlMaxTime;
+        tlLowerCursor = tlMinTime;
         if (tlPlayBtn) tlPlayBtn.innerHTML = '&#9654;';
         updateTlUI();
         recolor();
