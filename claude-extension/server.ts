@@ -19,6 +19,9 @@ import {
   assignTraceColors,
 } from '../src/models/trace-builder';
 import type { PRTrace, TraceFilter } from '../src/models/types';
+import { spawn } from 'child_process';
+import * as path from 'path';
+import * as fs from 'fs';
 
 // Simple MCP server over stdio
 interface MCPRequest {
@@ -98,7 +101,65 @@ const TOOLS = [
       required: ['provider', 'owner', 'repo'],
     },
   },
+  {
+    name: 'hodoscope_open_scatter',
+    description: 'Generate the cross-repo scatter visualization (GitHub + Azure DevOps + Wrike) and open it in the default browser. Uses whichever tokens are present in the environment (GH_TOKEN / gh CLI, AZDO_TOKEN, WRIKE_TOKEN). Skips any provider without credentials. Safe to run with only a GitHub token.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        openInBrowser: {
+          type: 'boolean',
+          default: true,
+          description: 'Whether to launch the default browser after generation. Set false in headless environments.',
+        },
+      },
+    },
+  },
 ];
+
+function openInBrowser(filePath: string): void {
+  const abs = path.resolve(filePath);
+  if (process.platform === 'win32') {
+    // cmd `start` needs an empty title arg so paths with spaces parse correctly.
+    spawn('cmd', ['/c', 'start', '""', abs], { detached: true, stdio: 'ignore' }).unref();
+  } else if (process.platform === 'darwin') {
+    spawn('open', [abs], { detached: true, stdio: 'ignore' }).unref();
+  } else {
+    spawn('xdg-open', [abs], { detached: true, stdio: 'ignore' }).unref();
+  }
+}
+
+function runScatterScript(): Promise<{ html: string; log: string }> {
+  return new Promise((resolve, reject) => {
+    // Resolve the script relative to this file so it works from any cwd.
+    const scriptPath = path.resolve(__dirname, '..', 'scripts', 'demo-scatter.ts');
+    const htmlPath = path.resolve(__dirname, '..', 'dist', 'scatter.html');
+    if (!fs.existsSync(scriptPath)) {
+      reject(new Error(`demo-scatter.ts not found at ${scriptPath}`));
+      return;
+    }
+    const child = spawn('npx', ['tsx', scriptPath], {
+      env: process.env,
+      shell: process.platform === 'win32',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let log = '';
+    child.stdout?.on('data', (d) => { log += d.toString(); });
+    child.stderr?.on('data', (d) => { log += d.toString(); });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`demo-scatter.ts exited with code ${code}\n${log}`));
+        return;
+      }
+      if (!fs.existsSync(htmlPath)) {
+        reject(new Error(`scatter.html was not produced at ${htmlPath}`));
+        return;
+      }
+      resolve({ html: htmlPath, log });
+    });
+  });
+}
 
 async function fetchPRsIfNeeded(provider: string, owner: string, repo: string, maxPRs = 100): Promise<PRTrace[]> {
   // Use cache if same repo
@@ -194,6 +255,19 @@ async function handleToolCall(name: string, args: any): Promise<any> {
 
       return {
         content: [{ type: 'text', text: JSON.stringify(allEvents, null, 2) }],
+      };
+    }
+
+    case 'hodoscope_open_scatter': {
+      const { html, log } = await runScatterScript();
+      const shouldOpen = args.openInBrowser !== false;
+      if (shouldOpen) openInBrowser(html);
+      const summary = log.split('\n').filter(l => l.includes('===') || /^Stats:/.test(l)).join('\n');
+      return {
+        content: [{
+          type: 'text',
+          text: `Generated scatter visualization at:\n${html}\n\n${summary || log.slice(-500)}\n\n${shouldOpen ? 'Opened in your default browser.' : 'Browser open skipped (openInBrowser=false).'}`,
+        }],
       };
     }
 
