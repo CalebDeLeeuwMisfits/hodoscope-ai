@@ -111,8 +111,21 @@ async function main() {
             console.log(` error`);
           }
         }
+
+        try {
+          process.stdout.write(`    work items...`);
+          const wiTraces = await azdoFetcher.fetchWorkItems(projectName, { maxItems: 200 });
+          if (wiTraces.length > 0) {
+            allTraces.push(...wiTraces);
+            console.log(` ${wiTraces.length}`);
+          } else {
+            console.log(` 0`);
+          }
+        } catch (err: any) {
+          console.log(` error: ${err.message?.slice(0, 50)}`);
+        }
       } catch (err: any) {
-        console.log(`  Error listing repos for ${project}: ${err.message?.slice(0, 60)}`);
+        console.log(`  Error listing repos for ${projectName}: ${err.message?.slice(0, 60)}`);
       }
     }
   } else {

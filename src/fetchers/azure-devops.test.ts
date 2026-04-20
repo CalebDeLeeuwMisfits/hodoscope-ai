@@ -9,6 +9,8 @@ const mockGetPullRequestThreads = vi.fn();
 const mockGetPullRequestIterations = vi.fn();
 const mockGetPullRequestReviewers = vi.fn();
 const mockGetRepository = vi.fn();
+const mockQueryByWiql = vi.fn();
+const mockGetRevisions = vi.fn();
 
 vi.mock('azure-devops-node-api', () => ({
   WebApi: vi.fn(() => ({
@@ -18,6 +20,10 @@ vi.mock('azure-devops-node-api', () => ({
       getPullRequestIterations: mockGetPullRequestIterations,
       getPullRequestReviewers: mockGetPullRequestReviewers,
       getRepository: mockGetRepository,
+    })),
+    getWorkItemTrackingApi: vi.fn(() => ({
+      queryByWiql: mockQueryByWiql,
+      getRevisions: mockGetRevisions,
     })),
   })),
   getPersonalAccessTokenHandler: vi.fn(() => ({})),
@@ -304,6 +310,114 @@ describe('AzureDevOpsFetcher', () => {
       expect(commitEvent?.timestamp).toBe('2026-02-10T08:30:00.000Z');
       const commentEvent = prTraces[0].events.find(e => e.type === 'comment');
       expect(commentEvent?.timestamp).toBe('2026-02-11T10:00:00.000Z');
+    });
+
+    describe('fetchWorkItems', () => {
+      const sampleRevisions = [
+        {
+          rev: 1,
+          fields: {
+            'System.Title': 'Build TTS pipeline',
+            'System.State': 'New',
+            'System.IterationPath': 'Audiotising\\Sprint 1',
+            'System.AssignedTo': { displayName: 'Alice' },
+            'System.CreatedBy': { displayName: 'Alice' },
+            'System.ChangedBy': { displayName: 'Alice' },
+            'System.ChangedDate': new Date('2026-03-01T10:00:00Z'),
+          },
+        },
+        {
+          rev: 2,
+          fields: {
+            'System.Title': 'Build TTS pipeline',
+            'System.State': 'Active',
+            'System.IterationPath': 'Audiotising\\Sprint 1',
+            'System.AssignedTo': { displayName: 'Alice' },
+            'System.ChangedBy': { displayName: 'Alice' },
+            'System.ChangedDate': new Date('2026-03-02T09:00:00Z'),
+          },
+        },
+        {
+          rev: 3,
+          fields: {
+            'System.Title': 'Build TTS pipeline',
+            'System.State': 'Closed',
+            'System.IterationPath': 'Audiotising\\Sprint 2',
+            'System.AssignedTo': { displayName: 'Bob' },
+            'System.ChangedBy': { displayName: 'Bob' },
+            'System.ChangedDate': new Date('2026-03-04T15:00:00Z'),
+          },
+        },
+      ];
+
+      it('returns work item PRTraces with status work_item', async () => {
+        mockQueryByWiql.mockResolvedValue({ workItems: [{ id: 42 }] });
+        mockGetRevisions.mockResolvedValue(sampleRevisions);
+
+        const traces = await fetcher.fetchWorkItems('Audiotising');
+        expect(traces).toHaveLength(1);
+        expect(traces[0].provider).toBe('azure-devops');
+        expect(traces[0].status).toBe('work_item');
+        expect(traces[0].prNumber).toBe(42);
+        expect(traces[0].title).toBe('Build TTS pipeline');
+        expect(traces[0].repoFullName).toBe('Audiotising');
+        expect(traces[0].author).toBe('Alice');
+        expect(traces[0].reviewers).toEqual(['Bob']);
+      });
+
+      it('builds state_changed and iteration_moved events from revisions', async () => {
+        mockQueryByWiql.mockResolvedValue({ workItems: [{ id: 42 }] });
+        mockGetRevisions.mockResolvedValue(sampleRevisions);
+
+        const traces = await fetcher.fetchWorkItems('Audiotising');
+        const stateEvents = traces[0].events.filter(e => e.type === 'state_changed');
+        const iterEvents = traces[0].events.filter(e => e.type === 'iteration_moved');
+        expect(stateEvents).toHaveLength(2);
+        expect(iterEvents).toHaveLength(1);
+      });
+
+      it('handles string-typed ChangedDate fields without throwing', async () => {
+        const stringDated = sampleRevisions.map(r => ({
+          ...r,
+          fields: {
+            ...r.fields,
+            'System.ChangedDate': (r.fields['System.ChangedDate'] as Date).toISOString(),
+          },
+        }));
+        mockQueryByWiql.mockResolvedValue({ workItems: [{ id: 42 }] });
+        mockGetRevisions.mockResolvedValue(stringDated);
+
+        const traces = await fetcher.fetchWorkItems('Audiotising');
+        expect(traces).toHaveLength(1);
+        expect(traces[0].createdAt).toBe('2026-03-01T10:00:00.000Z');
+        expect(traces[0].updatedAt).toBe('2026-03-04T15:00:00.000Z');
+      });
+
+      it('returns empty array when WIQL returns no work items', async () => {
+        mockQueryByWiql.mockResolvedValue({ workItems: [] });
+        const traces = await fetcher.fetchWorkItems('Audiotising');
+        expect(traces).toEqual([]);
+      });
+
+      it('skips work items whose getRevisions call fails', async () => {
+        mockQueryByWiql.mockResolvedValue({ workItems: [{ id: 1 }, { id: 2 }] });
+        mockGetRevisions
+          .mockResolvedValueOnce(sampleRevisions)
+          .mockRejectedValueOnce(new Error('forbidden'));
+
+        const traces = await fetcher.fetchWorkItems('Audiotising');
+        expect(traces).toHaveLength(1);
+        expect(traces[0].prNumber).toBe(1);
+      });
+
+      it('respects maxItems limit', async () => {
+        const ids = Array.from({ length: 10 }, (_, i) => ({ id: i + 1 }));
+        mockQueryByWiql.mockResolvedValue({ workItems: ids });
+        mockGetRevisions.mockResolvedValue(sampleRevisions);
+
+        const traces = await fetcher.fetchWorkItems('Audiotising', { maxItems: 3 });
+        expect(traces).toHaveLength(3);
+      });
     });
 
     it('handles string-typed repository dateCreated without throwing', async () => {
