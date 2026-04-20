@@ -332,12 +332,12 @@ export function generateScatterHTML(
   </div>
 
   <div class="stats-bar">
-    <div class="stat"><div class="stat-val t">${stats.totalPRs - (stats.repoCreatedCount || 0)}</div><div class="stat-lbl">Total PRs</div></div>
-    <div class="stat"><div class="stat-val m">${stats.mergedPRs}</div><div class="stat-lbl">Merged</div></div>
-    <div class="stat"><div class="stat-val o">${stats.openPRs}</div><div class="stat-lbl">Open</div></div>
-    <div class="stat"><div class="stat-val c">${stats.closedPRs}</div><div class="stat-lbl">Closed</div></div>
-    <div class="stat"><div class="stat-val a">${stats.uniqueAuthors}</div><div class="stat-lbl">Authors</div></div>
-    <div class="stat"><div class="stat-val r">${stats.repoCreatedCount || 0}</div><div class="stat-lbl">Repos</div></div>
+    <div class="stat"><div class="stat-val t" id="stat-total">${stats.totalPRs - (stats.repoCreatedCount || 0)}</div><div class="stat-lbl">Total PRs</div></div>
+    <div class="stat"><div class="stat-val m" id="stat-merged">${stats.mergedPRs}</div><div class="stat-lbl">Merged</div></div>
+    <div class="stat"><div class="stat-val o" id="stat-open">${stats.openPRs}</div><div class="stat-lbl">Open</div></div>
+    <div class="stat"><div class="stat-val c" id="stat-closed">${stats.closedPRs}</div><div class="stat-lbl">Closed</div></div>
+    <div class="stat"><div class="stat-val a" id="stat-authors">${stats.uniqueAuthors}</div><div class="stat-lbl">Authors</div></div>
+    <div class="stat"><div class="stat-val r" id="stat-repos">${stats.repoCreatedCount || 0}</div><div class="stat-lbl">Repos</div></div>
   </div>
 
   ${hasData ? '<div class="timeline-bar">' +
@@ -493,6 +493,34 @@ export function generateScatterHTML(
       vals.forEach(function(v, i) { cmap[v] = PAL[i % PAL.length]; });
       pts.forEach(function(p) { p.color = cmap[p[colorBy]]; });
       buildLegend(vals, cmap);
+      updateStats();
+    }
+
+    function updateStats() {
+      var vis = pts.filter(isVisible);
+      var total = 0, merged = 0, open = 0, closed = 0, repos = 0;
+      var authorSet = {};
+      for (var i = 0; i < vis.length; i++) {
+        var p = vis[i];
+        if (p.status === 'repo_created') { repos++; continue; }
+        total++;
+        if (p.status === 'merged') merged++;
+        else if (p.status === 'open' || p.status === 'draft') open++;
+        else if (p.status === 'closed') closed++;
+        if (p.author) authorSet[p.author] = 1;
+      }
+      var elTotal = document.getElementById('stat-total');
+      var elMerged = document.getElementById('stat-merged');
+      var elOpen = document.getElementById('stat-open');
+      var elClosed = document.getElementById('stat-closed');
+      var elAuthors = document.getElementById('stat-authors');
+      var elRepos = document.getElementById('stat-repos');
+      if (elTotal) elTotal.textContent = String(total);
+      if (elMerged) elMerged.textContent = String(merged);
+      if (elOpen) elOpen.textContent = String(open);
+      if (elClosed) elClosed.textContent = String(closed);
+      if (elAuthors) elAuthors.textContent = String(Object.keys(authorSet).length);
+      if (elRepos) elRepos.textContent = String(repos);
     }
 
     function buildLegend(vals, cmap) {
