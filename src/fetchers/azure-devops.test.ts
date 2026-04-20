@@ -252,5 +252,74 @@ describe('AzureDevOpsFetcher', () => {
       expect(t.labels).toEqual([]);
       expect(t.reviewers).toEqual([]);
     });
+
+    // Regression: real Azure DevOps API responses often come back with date
+    // fields as ISO strings (e.g. after JSON round-trips) rather than Date
+    // instances. Calling `.toISOString()` on a string throws TypeError and
+    // silently drops every PR in that repo via the outer try/catch.
+    it('handles string-typed creationDate/closedDate without throwing', async () => {
+      const stringDatedPR = {
+        ...sampleAzdoPR,
+        creationDate: '2026-02-10T08:00:00Z' as unknown as Date,
+        closedDate: '2026-02-12T16:00:00Z' as unknown as Date,
+      };
+      mockGetPullRequests.mockResolvedValue([stringDatedPR]);
+      mockGetPullRequestThreads.mockResolvedValue([]);
+      mockGetPullRequestIterations.mockResolvedValue([]);
+      mockGetPullRequestReviewers.mockResolvedValue([]);
+
+      const traces = await fetcher.fetchPRs('project', 'repo');
+      const prTraces = traces.filter(t => t.status !== 'repo_created');
+      expect(prTraces).toHaveLength(1);
+      expect(prTraces[0].createdAt).toBe('2026-02-10T08:00:00.000Z');
+      expect(prTraces[0].mergedAt).toBe('2026-02-12T16:00:00.000Z');
+    });
+
+    it('handles string-typed iteration/thread timestamps without throwing', async () => {
+      const stringDatedIterations = [
+        {
+          id: 1,
+          createdDate: '2026-02-10T08:30:00Z' as unknown as Date,
+          author: { displayName: 'Bob' },
+          description: 'push',
+          sourceRefCommit: { commitId: 'abc' },
+        },
+      ];
+      const stringDatedThreads = [
+        {
+          id: 501,
+          publishedDate: '2026-02-11T10:00:00Z' as unknown as Date,
+          comments: [{ author: { displayName: 'Carol' }, content: 'lgtm', commentType: 1 }],
+        },
+      ];
+      mockGetPullRequests.mockResolvedValue([sampleAzdoPR]);
+      mockGetPullRequestThreads.mockResolvedValue(stringDatedThreads);
+      mockGetPullRequestIterations.mockResolvedValue(stringDatedIterations);
+      mockGetPullRequestReviewers.mockResolvedValue([]);
+
+      const traces = await fetcher.fetchPRs('project', 'repo');
+      const prTraces = traces.filter(t => t.status !== 'repo_created');
+      expect(prTraces).toHaveLength(1);
+      const commitEvent = prTraces[0].events.find(e => e.type === 'commit');
+      expect(commitEvent?.timestamp).toBe('2026-02-10T08:30:00.000Z');
+      const commentEvent = prTraces[0].events.find(e => e.type === 'comment');
+      expect(commentEvent?.timestamp).toBe('2026-02-11T10:00:00.000Z');
+    });
+
+    it('handles string-typed repository dateCreated without throwing', async () => {
+      mockGetRepository.mockResolvedValueOnce({
+        name: 'repo',
+        project: { name: 'project' },
+        dateCreated: '2021-03-01T00:00:00Z',
+        createdBy: { displayName: 'admin' },
+        webUrl: 'https://dev.azure.com/myorg/project/_git/repo',
+      });
+      mockGetPullRequests.mockResolvedValue([]);
+
+      const traces = await fetcher.fetchPRs('project', 'repo');
+      const repoTrace = traces.find(t => t.status === 'repo_created');
+      expect(repoTrace).toBeDefined();
+      expect(repoTrace!.createdAt).toBe('2021-03-01T00:00:00.000Z');
+    });
   });
 });

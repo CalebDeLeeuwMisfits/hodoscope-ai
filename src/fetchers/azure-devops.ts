@@ -8,6 +8,20 @@ export interface AzdoFetchOptions {
   status?: 'all' | 'active' | 'completed' | 'abandoned';
 }
 
+// Normalize a timestamp that the azure-devops-node-api may return as either a
+// Date instance (SDK-parsed) or an ISO string (raw JSON). Calling
+// `.toISOString()` directly on a string throws TypeError and, because callers
+// catch per-repo errors, silently drops every PR in that repo.
+function toIso(value: unknown): string | undefined {
+  if (!value) return undefined;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? undefined : d.toISOString();
+  }
+  return undefined;
+}
+
 // Azure DevOps PR status codes
 const AZDO_STATUS = {
   ACTIVE: 1,
@@ -62,8 +76,8 @@ export class AzureDevOpsFetcher {
       const events = this.buildEvents(pr, threads || [], iterations || [], reviewers || []);
       const status = this.determineStatus(pr);
 
-      const createdAt = pr.creationDate?.toISOString() || new Date().toISOString();
-      const closedAt = pr.closedDate?.toISOString();
+      const createdAt = toIso(pr.creationDate) || new Date().toISOString();
+      const closedAt = toIso(pr.closedDate);
 
       traces.push({
         id: `azdo-${project}-${repo}-${prId}`,
@@ -95,7 +109,7 @@ export class AzureDevOpsFetcher {
     try {
       const repoInfo = await gitApi.getRepository(repo, project);
       if (repoInfo) {
-        const createdAt = (repoInfo as any).dateCreated?.toISOString() || new Date().toISOString();
+        const createdAt = toIso((repoInfo as any).dateCreated) || new Date().toISOString();
         const author = (repoInfo as any).createdBy?.displayName || 'unknown';
         const url = (repoInfo as any).webUrl || '';
         traces.push(buildRepoCreatedTrace(
@@ -128,7 +142,7 @@ export class AzureDevOpsFetcher {
     reviewers: any[]
   ): TraceEvent[] {
     const events: TraceEvent[] = [];
-    const createdAt = pr.creationDate?.toISOString() || new Date().toISOString();
+    const createdAt = toIso(pr.creationDate) || new Date().toISOString();
 
     // Synthetic created event
     events.push({
@@ -144,7 +158,7 @@ export class AzureDevOpsFetcher {
       events.push({
         id: `azdo-iter-${iter.id}`,
         type: 'commit',
-        timestamp: iter.createdDate?.toISOString() || createdAt,
+        timestamp: toIso(iter.createdDate) || createdAt,
         author: iter.author?.displayName || pr.createdBy?.displayName || 'unknown',
         description: iter.description || `Push iteration ${iter.id}`,
         metadata: { commitId: iter.sourceRefCommit?.commitId },
@@ -160,7 +174,7 @@ export class AzureDevOpsFetcher {
       events.push({
         id: `azdo-thread-${thread.id}`,
         type: 'comment',
-        timestamp: thread.publishedDate?.toISOString() || createdAt,
+        timestamp: toIso(thread.publishedDate) || createdAt,
         author: firstComment.author?.displayName || 'unknown',
         description: firstComment.content || 'Comment',
       });
@@ -186,19 +200,20 @@ export class AzureDevOpsFetcher {
     }
 
     // Merged/closed synthetic event
-    if (pr.status === AZDO_STATUS.COMPLETED && pr.closedDate) {
+    const closedIso = toIso(pr.closedDate);
+    if (pr.status === AZDO_STATUS.COMPLETED && closedIso) {
       events.push({
         id: `azdo-merged-${pr.pullRequestId}`,
         type: 'merged',
-        timestamp: pr.closedDate.toISOString(),
+        timestamp: closedIso,
         author: pr.createdBy?.displayName || 'unknown',
         description: `PR #${pr.pullRequestId} merged`,
       });
-    } else if (pr.status === AZDO_STATUS.ABANDONED && pr.closedDate) {
+    } else if (pr.status === AZDO_STATUS.ABANDONED && closedIso) {
       events.push({
         id: `azdo-closed-${pr.pullRequestId}`,
         type: 'closed',
-        timestamp: pr.closedDate.toISOString(),
+        timestamp: closedIso,
         author: pr.createdBy?.displayName || 'unknown',
         description: `PR #${pr.pullRequestId} abandoned`,
       });
