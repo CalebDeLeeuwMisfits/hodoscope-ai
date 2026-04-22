@@ -1,11 +1,17 @@
 // NOTE: PR description and dates are passed through to the deep-dive detail panel
 import * as azdev from 'azure-devops-node-api';
 import type { PRTrace, TraceEvent, PRStatus, TraceEventType } from '../models/types';
-import { buildRepoCreatedTrace } from '../models/trace-factory';
+import { buildRepoCreatedTrace, buildWorkItemTrace, type WorkItemRevision } from '../models/trace-factory';
 
 export interface AzdoFetchOptions {
   maxPRs?: number;
   status?: 'all' | 'active' | 'completed' | 'abandoned';
+}
+
+export interface AzdoWorkItemFetchOptions {
+  maxItems?: number;
+  /** Override the default WIQL. Must return a set of work item IDs. */
+  wiql?: string;
 }
 
 // Normalize a timestamp that the azure-devops-node-api may return as either a
@@ -123,6 +129,83 @@ export class AzureDevOpsFetcher {
     } catch { /* graceful degradation */ }
 
     return traces;
+  }
+
+  /**
+   * Fetch Azure DevOps work items for a project and return them as PRTraces.
+   * Each work item's revision history becomes the event timeline:
+   * state transitions → `state_changed`, iteration changes → `iteration_moved`.
+   */
+  async fetchWorkItems(
+    project: string,
+    options: AzdoWorkItemFetchOptions = {}
+  ): Promise<PRTrace[]> {
+    const { maxItems = 200, wiql } = options;
+
+    const authHandler = azdev.getPersonalAccessTokenHandler(this.token);
+    const connection = new azdev.WebApi(this.orgUrl, authHandler);
+    const witApi = await connection.getWorkItemTrackingApi();
+
+    const query = wiql || `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${project.replace(/'/g, "''")}' ORDER BY [System.ChangedDate] DESC`;
+
+    const queryResult = await witApi.queryByWiql({ query } as any, { project } as any);
+    const workItemRefs = (queryResult?.workItems || []).slice(0, maxItems);
+
+    const traces: PRTrace[] = [];
+    for (const ref of workItemRefs) {
+      const id = ref.id;
+      if (id == null) continue;
+
+      let revisions: any[];
+      try {
+        revisions = await witApi.getRevisions(id, undefined, undefined, undefined, project);
+      } catch {
+        // Forbidden, deleted, or unreachable — skip and continue.
+        continue;
+      }
+      if (!revisions || revisions.length === 0) continue;
+
+      const normalized = this.normalizeWorkItemRevisions(revisions);
+      if (normalized.length === 0) continue;
+
+      const title =
+        (revisions[revisions.length - 1]?.fields?.['System.Title'] as string | undefined) ||
+        (revisions[0]?.fields?.['System.Title'] as string | undefined) ||
+        `Work item #${id}`;
+      const url = (revisions[revisions.length - 1] as any)?._links?.html?.href || '';
+
+      traces.push(buildWorkItemTrace({
+        project,
+        id,
+        title,
+        url,
+        revisions: normalized,
+      }));
+    }
+    return traces;
+  }
+
+  private normalizeWorkItemRevisions(rawRevs: any[]): WorkItemRevision[] {
+    const out: WorkItemRevision[] = [];
+    for (const r of rawRevs) {
+      const fields = r.fields || {};
+      const changedDate = toIso(fields['System.ChangedDate']);
+      if (!changedDate) continue;
+      const assignedTo = fields['System.AssignedTo']?.displayName || '';
+      const changedBy =
+        fields['System.ChangedBy']?.displayName ||
+        fields['System.CreatedBy']?.displayName ||
+        assignedTo ||
+        'unknown';
+      out.push({
+        changedDate,
+        state: (fields['System.State'] as string) || '',
+        iterationPath: (fields['System.IterationPath'] as string) || '',
+        assignedTo,
+        changedBy,
+      });
+    }
+    return out;
   }
 
   private stripRefPrefix(ref: string): string {

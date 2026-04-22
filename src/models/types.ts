@@ -5,7 +5,7 @@
 export type SCMProvider = 'github' | 'azure-devops' | 'wrike';
 
 /** PR status */
-export type PRStatus = 'open' | 'merged' | 'closed' | 'draft' | 'deferred' | 'repo_created';
+export type PRStatus = 'open' | 'merged' | 'closed' | 'draft' | 'deferred' | 'repo_created' | 'work_item';
 
 /** Types of events in a PR lifecycle */
 export type TraceEventType =
@@ -25,7 +25,9 @@ export type TraceEventType =
   | 'ci_failed'
   | 'label_added'
   | 'label_removed'
-  | 'status_changed';
+  | 'status_changed'
+  | 'state_changed'
+  | 'iteration_moved';
 
 /** A single event in a PR trace (analogous to Hodoscope "action") */
 export interface TraceEvent {

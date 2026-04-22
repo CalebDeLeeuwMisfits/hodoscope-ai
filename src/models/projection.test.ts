@@ -130,9 +130,36 @@ describe('extractFeatures', () => {
     expect(new Set(lengths).size).toBe(1); // all same length
   });
 
-  it('returns 20-element feature vector', () => {
+  it('returns 21-element feature vector', () => {
     const features = extractFeatures(makeTrace());
-    expect(features).toHaveLength(20);
+    expect(features).toHaveLength(21);
+  });
+
+  it('sets work_item flag at index 20', () => {
+    const wi = makeTrace({
+      status: 'work_item',
+      provider: 'azure-devops',
+      additions: 0,
+      deletions: 0,
+      changedFiles: 0,
+    });
+    const features = extractFeatures(wi);
+    expect(features[20]).toBe(1);
+    // code-churn dims should be zeroed for work items
+    expect(features[1]).toBe(0); // additions
+    expect(features[2]).toBe(0); // deletions
+    expect(features[3]).toBe(0); // additions + deletions
+    expect(features[4]).toBe(0); // changedFiles
+    // work_item flag is exclusive of other status flags
+    expect(features[12]).toBe(0); // merged
+    expect(features[13]).toBe(0); // open
+    expect(features[14]).toBe(0); // closed
+    expect(features[19]).toBe(0); // repo_created
+  });
+
+  it('work_item flag is 0 for non-work-item statuses', () => {
+    expect(extractFeatures(makeTrace({ status: 'merged' }))[20]).toBe(0);
+    expect(extractFeatures(makeTrace({ status: 'repo_created' }))[20]).toBe(0);
   });
 
   it('sets provider flags correctly for github', () => {

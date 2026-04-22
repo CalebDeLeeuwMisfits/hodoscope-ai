@@ -125,6 +125,7 @@ export function generateScatterHTML(
     .stat-val.t { color: #FFA15A; }
     .stat-val.a { color: #AB63FA; }
     .stat-val.r { color: #00d2d3; }
+    .stat-val.w { color: #ffb347; }
     .stat-lbl { font-size: 8px; text-transform: uppercase; letter-spacing: 1.5px; color: #8b949e; margin-top: 2px; }
 
     /* ===== MAIN ===== */
@@ -338,6 +339,7 @@ export function generateScatterHTML(
     <div class="stat"><div class="stat-val c" id="stat-closed">${stats.closedPRs}</div><div class="stat-lbl">Closed</div></div>
     <div class="stat"><div class="stat-val a" id="stat-authors">${stats.uniqueAuthors}</div><div class="stat-lbl">Authors</div></div>
     <div class="stat"><div class="stat-val r" id="stat-repos">${stats.repoCreatedCount || 0}</div><div class="stat-lbl">Repos</div></div>
+    <div class="stat"><div class="stat-val w" id="stat-workitems">0</div><div class="stat-lbl">Work Items</div></div>
   </div>
 
   ${hasData ? '<div class="timeline-bar">' +
@@ -498,11 +500,16 @@ export function generateScatterHTML(
 
     function updateStats() {
       var vis = pts.filter(isVisible);
-      var total = 0, merged = 0, open = 0, closed = 0, repos = 0;
+      var total = 0, merged = 0, open = 0, closed = 0, repos = 0, workItems = 0;
       var authorSet = {};
       for (var i = 0; i < vis.length; i++) {
         var p = vis[i];
         if (p.status === 'repo_created') { repos++; continue; }
+        if (p.status === 'work_item') {
+          workItems++;
+          if (p.author) authorSet[p.author] = 1;
+          continue;
+        }
         total++;
         if (p.status === 'merged') merged++;
         else if (p.status === 'open' || p.status === 'draft') open++;
@@ -515,27 +522,34 @@ export function generateScatterHTML(
       var elClosed = document.getElementById('stat-closed');
       var elAuthors = document.getElementById('stat-authors');
       var elRepos = document.getElementById('stat-repos');
+      var elWorkItems = document.getElementById('stat-workitems');
       if (elTotal) elTotal.textContent = String(total);
       if (elMerged) elMerged.textContent = String(merged);
       if (elOpen) elOpen.textContent = String(open);
       if (elClosed) elClosed.textContent = String(closed);
       if (elAuthors) elAuthors.textContent = String(Object.keys(authorSet).length);
       if (elRepos) elRepos.textContent = String(repos);
+      if (elWorkItems) elWorkItems.textContent = String(workItems);
     }
 
     function buildLegend(vals, cmap) {
       var el = document.getElementById('legend');
       el.innerHTML = vals.map(function(v) {
-        var prPts = pts.filter(function(p) { return p[colorBy] === v && p.status !== 'repo_created'; });
+        var prPts = pts.filter(function(p) { return p[colorBy] === v && p.status !== 'repo_created' && p.status !== 'work_item'; });
         var repoPts = pts.filter(function(p) { return p[colorBy] === v && p.status === 'repo_created'; });
+        var wiPts = pts.filter(function(p) { return p[colorBy] === v && p.status === 'work_item'; });
         var vis = prPts.filter(function(p) { return isVisible(p); }).length;
         var cnt = prPts.length;
         var repoCount = repoPts.length;
+        var wiCount = wiPts.length;
         var off = hidden[v] ? ' off' : '';
         return '<div class="leg-item' + off + '" data-v="' + esc(v) + '">' +
           '<span class="leg-dot" style="color:' + cmap[v] + ';background:' + cmap[v] + '"></span>' +
           '<span>' + esc(v) + '</span>' +
-          '<span class="leg-cnt">' + vis + '/' + cnt + (repoCount > 0 ? ' <span style="color:#00d2d3;" title="Repos founded">◆' + repoCount + '</span>' : '') + '</span></div>';
+          '<span class="leg-cnt">' + vis + '/' + cnt +
+            (repoCount > 0 ? ' <span style="color:#00d2d3;" title="Repos founded">◆' + repoCount + '</span>' : '') +
+            (wiCount > 0 ? ' <span style="color:#ffb347;" title="Work items">▲' + wiCount + '</span>' : '') +
+          '</span></div>';
       }).join('');
       el.querySelectorAll('.leg-item').forEach(function(item) {
         item.addEventListener('click', function() {
@@ -601,7 +615,7 @@ export function generateScatterHTML(
       ctx.drawImage(tmpCanvas, 0, 0, W, H);
     }
 
-    // ===== DIAMOND HELPER =====
+    // ===== SHAPE HELPERS =====
     function drawDiamond(cx, cy, size) {
       ctx.beginPath();
       ctx.moveTo(cx, cy - size);
@@ -609,6 +623,24 @@ export function generateScatterHTML(
       ctx.lineTo(cx, cy + size);
       ctx.lineTo(cx - size, cy);
       ctx.closePath();
+    }
+
+    function drawTriangle(cx, cy, size) {
+      // Equilateral, pointing up — chosen to visually distinguish work items
+      // (ADO tickets) from repo_created diamonds and PR circles.
+      var h = size * 1.1547; // 2/sqrt(3) for equilateral
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - h * 0.66);
+      ctx.lineTo(cx + size, cy + h * 0.33);
+      ctx.lineTo(cx - size, cy + h * 0.33);
+      ctx.closePath();
+    }
+
+    function drawShape(status, cx, cy, size) {
+      if (status === 'repo_created') { drawDiamond(cx, cy, size); return; }
+      if (status === 'work_item') { drawTriangle(cx, cy, size); return; }
+      ctx.beginPath();
+      ctx.arc(cx, cy, size, 0, Math.PI * 2);
     }
 
     // ===== DRAW =====
@@ -653,8 +685,8 @@ export function generateScatterHTML(
           return;
         }
 
-        var isDiamond = p.status === 'repo_created';
-        // Outer glow halo (circular for both — looks natural behind diamond)
+        var shape = p.status; // 'repo_created' | 'work_item' | other (→ circle)
+        // Outer glow halo (circular for all shapes — looks natural behind them)
         var glowMult = isHighlit ? 1.5 : 1;
         var grd2 = ctx.createRadialGradient(px, py, 0, px, py, r * (isH ? 4 : 2.5) * glowMult);
         grd2.addColorStop(0, (isHighlit ? p._repoColor : p.color) + '60');
@@ -666,33 +698,18 @@ export function generateScatterHTML(
 
         // Repo indicator ring (always visible, brighter when highlighted)
         var ringAlpha = colorBy === 'repoName' ? '00' : (isHighlit ? 'ff' : 'aa');
-        if (isDiamond) {
-          drawDiamond(px, py, r * (isH ? 1.7 : 1.3));
-        } else {
-          ctx.beginPath();
-          ctx.arc(px, py, r * (isH ? 1.7 : 1.3), 0, Math.PI * 2);
-        }
+        drawShape(shape, px, py, r * (isH ? 1.7 : 1.3));
         ctx.strokeStyle = p._repoColor + ringAlpha;
         ctx.lineWidth = isHighlit ? 3 : (isH ? 2.5 : 1.5);
         ctx.stroke();
 
         // Core shape (primary color, or repo color when highlighted)
-        if (isDiamond) {
-          drawDiamond(px, py, r * (isH ? 1.4 : 1));
-        } else {
-          ctx.beginPath();
-          ctx.arc(px, py, r * (isH ? 1.4 : 1), 0, Math.PI * 2);
-        }
+        drawShape(shape, px, py, r * (isH ? 1.4 : 1));
         ctx.fillStyle = (isHighlit ? p._repoColor : p.color) + (isH ? 'ff' : 'cc');
         ctx.fill();
 
         // Bright center
-        if (isDiamond) {
-          drawDiamond(px, py, r * 0.4);
-        } else {
-          ctx.beginPath();
-          ctx.arc(px, py, r * 0.4, 0, Math.PI * 2);
-        }
+        drawShape(shape, px, py, r * 0.4);
         ctx.fillStyle = isHighlit ? '#ffffffdd' : '#ffffffaa';
         ctx.fill();
 
@@ -840,9 +857,13 @@ export function generateScatterHTML(
       }
       if (hovered) {
         var p = hovered;
-        var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e',deferred:'#FFA15A',repo_created:'#00d2d3'};
-        var ttPrefix = p.status === 'repo_created' ? '◆ ' : (p.provider === 'wrike' ? 'Task ' : 'PR #');
-        var ttTitle = p.status === 'repo_created' ? esc(p.title) : ttPrefix + p.prNumber + ': ' + esc(p.title);
+        var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e',deferred:'#FFA15A',repo_created:'#00d2d3',work_item:'#ffb347'};
+        var ttPrefix = p.status === 'repo_created' ? '◆ '
+          : p.status === 'work_item' ? '▲ WI #'
+          : (p.provider === 'wrike' ? 'Task ' : 'PR #');
+        var ttTitle = p.status === 'repo_created' ? esc(p.title)
+          : p.status === 'work_item' ? ttPrefix + p.prNumber + ': ' + esc(p.title)
+          : ttPrefix + p.prNumber + ': ' + esc(p.title);
         var showBranch = p.status !== 'repo_created' && p.provider !== 'wrike';
         tip.innerHTML =
           '<div class="tt-title">' + ttTitle + '</div>' +
@@ -883,11 +904,17 @@ export function generateScatterHTML(
 
       if (!hovered) { detail.classList.remove('open'); return; }
       var p = hovered;
-      var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e',deferred:'#FFA15A',repo_created:'#00d2d3'};
-      var detailPrefix = p.status === 'repo_created' ? '◆ Repo Created' : (p.provider === 'wrike' ? 'Task ' : 'PR #') + p.prNumber;
+      var statusColors = {merged:'#00CC96',open:'#636EFA',closed:'#EF553B',draft:'#8b949e',deferred:'#FFA15A',repo_created:'#00d2d3',work_item:'#ffb347'};
+      var detailPrefix = p.status === 'repo_created' ? '◆ Repo Created'
+        : p.status === 'work_item' ? '▲ Work Item #' + p.prNumber
+        : (p.provider === 'wrike' ? 'Task ' : 'PR #') + p.prNumber;
       var providerName = p.provider === 'github' ? 'GitHub' : p.provider === 'azure-devops' ? 'Azure DevOps' : 'Wrike';
-      var linkText = p.status === 'repo_created' ? 'View Repository' : 'Open in ' + providerName;
-      var branchRow = p.status === 'repo_created' ? '' : (p.provider === 'wrike' ? row('Project', p.targetBranch) : row('Branch', p.sourceBranch + ' → ' + p.targetBranch));
+      var linkText = p.status === 'repo_created' ? 'View Repository'
+        : p.status === 'work_item' ? 'Open Work Item'
+        : 'Open in ' + providerName;
+      var branchRow = p.status === 'repo_created' ? ''
+        : p.status === 'work_item' ? row('State', p.targetBranch || '—') + (p.reviewers && p.reviewers.length ? row('Assigned to', p.reviewers.join(', ')) : '')
+        : (p.provider === 'wrike' ? row('Project', p.targetBranch) : row('Branch', p.sourceBranch + ' → ' + p.targetBranch));
       var evtBreakdown = (p.reviewCount || p.approvalCount || p.commentCount || p.timelineEventCount) ?
         ' <span style="font-size:9px;color:#8b949e;">(' +
         [p.reviewCount ? p.reviewCount + ' reviews' : '',
@@ -975,9 +1002,13 @@ export function generateScatterHTML(
 
       var html = '<div class="key-title">Key: ' + modeLabel + '</div>';
       vals.slice(0, 8).forEach(function(v) {
-        var cnt = pts.filter(function(p) { return p[colorBy] === v && p.status !== 'repo_created'; }).length;
+        var cnt = pts.filter(function(p) { return p[colorBy] === v && p.status !== 'repo_created' && p.status !== 'work_item'; }).length;
         var repoCount = pts.filter(function(p) { return p[colorBy] === v && p.status === 'repo_created'; }).length;
-        html += '<div class="key-row"><span class="key-swatch" style="color:' + cmap[v] + ';background:' + cmap[v] + '"></span><span>' + esc(v) + '</span><span style="color:#8b949e;margin-left:auto;">' + cnt + (repoCount > 0 ? ' <span style="color:#00d2d3;">◆' + repoCount + '</span>' : '') + '</span></div>';
+        var wiCount = pts.filter(function(p) { return p[colorBy] === v && p.status === 'work_item'; }).length;
+        html += '<div class="key-row"><span class="key-swatch" style="color:' + cmap[v] + ';background:' + cmap[v] + '"></span><span>' + esc(v) + '</span><span style="color:#8b949e;margin-left:auto;">' + cnt +
+          (repoCount > 0 ? ' <span style="color:#00d2d3;">◆' + repoCount + '</span>' : '') +
+          (wiCount > 0 ? ' <span style="color:#ffb347;">▲' + wiCount + '</span>' : '') +
+          '</span></div>';
       });
       if (vals.length > 8) {
         html += '<div style="color:#484f58;padding-top:2px;">+' + (vals.length - 8) + ' more</div>';

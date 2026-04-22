@@ -56,6 +56,10 @@ export function extractFeatures(trace: PRTrace): number[] {
 
     // Repo creation flag
     trace.status === 'repo_created' ? 1 : 0,
+
+    // Work item flag (Azure DevOps tickets) — keeps them clusterable alongside
+    // PRs without pollution from their zeroed code-churn dims.
+    trace.status === 'work_item' ? 1 : 0,
   ];
 }
 
