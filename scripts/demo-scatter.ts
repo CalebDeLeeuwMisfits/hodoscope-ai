@@ -242,8 +242,15 @@ async function main() {
 
   const outDir = path.join(__dirname, '..', 'dist');
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-  const outFile = path.join(outDir, 'scatter.html');
+  const outFile = path.join(outDir, 'index.html');
   fs.writeFileSync(outFile, html, 'utf-8');
+
+  const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#0a0a0f"/><circle cx="16" cy="16" r="8" fill="none" stroke="#00d4ff" stroke-width="2" opacity="0.8"/><circle cx="16" cy="16" r="4" fill="#00d4ff"/></svg>`;
+  fs.writeFileSync(path.join(outDir, 'favicon.ico'), faviconSvg);
+  fs.writeFileSync(path.join(outDir, 'favicon.svg'), faviconSvg);
+  fs.writeFileSync(path.join(outDir, 'apple-touch-icon.png'), faviconSvg);
+  fs.writeFileSync(path.join(outDir, 'apple-touch-icon-precomposed.png'), faviconSvg);
+
   console.log(`\nVisualization: ${outFile}`);
 
   try {

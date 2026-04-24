@@ -75,6 +75,8 @@ export function generateScatterHTML(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   ${cspTag}
   <title>Misfits and Machines X Hodoscope AI — PR Trace Explorer</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%230a0a0f'/><circle cx='16' cy='16' r='8' fill='none' stroke='%2300d4ff' stroke-width='2' opacity='0.8'/><circle cx='16' cy='16' r='4' fill='%2300d4ff'/></svg>">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%230a0a0f'/><circle cx='90' cy='90' r='50' fill='none' stroke='%2300d4ff' stroke-width='8' opacity='0.8'/><circle cx='90' cy='90' r='20' fill='%2300d4ff'/></svg>">
   <style${nonceAttr}>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {

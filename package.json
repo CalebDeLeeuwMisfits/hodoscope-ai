@@ -1,17 +1,11 @@
 {
   "name": "hodoscope-ai",
-  "displayName": "Hodoscope AI — PR Trace Visualizer",
-  "description": "Visualize Git PR history as interactive particle traces with deep-dive PR detail panels. Works with GitHub & Azure DevOps. Manager-friendly.",
+  "description": "Visualize Git PR history as interactive particle traces with deep-dive PR detail panels. Works with GitHub & Azure DevOps.",
   "version": "0.1.0",
-  "publisher": "misfitsandmachines",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.85.0"
+    "node": ">=20"
   },
-  "categories": [
-    "Visualization",
-    "SCM Providers"
-  ],
   "keywords": [
     "git",
     "pull-request",
@@ -19,79 +13,24 @@
     "github",
     "azure-devops",
     "hodoscope",
-    "traces"
+    "t-sne"
   ],
-  "activationEvents": [
-    "onCommand:hodoscope.open",
-    "onCommand:hodoscope.refresh"
-  ],
-  "main": "./dist/extension.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "hodoscope.open",
-        "title": "Hodoscope: Open PR Trace Visualizer",
-        "icon": "$(pulse)"
-      },
-      {
-        "command": "hodoscope.refresh",
-        "title": "Hodoscope: Refresh PR Data"
-      },
-      {
-        "command": "hodoscope.selectRepo",
-        "title": "Hodoscope: Select Repository"
-      }
-    ],
-    "configuration": {
-      "title": "Hodoscope AI",
-      "properties": {
-        "hodoscope.github.token": {
-          "type": "string",
-          "default": "",
-          "description": "GitHub personal access token (or leave empty to use gh CLI auth)"
-        },
-        "hodoscope.azureDevOps.orgUrl": {
-          "type": "string",
-          "default": "",
-          "description": "Azure DevOps organization URL (e.g. https://dev.azure.com/myorg)"
-        },
-        "hodoscope.azureDevOps.token": {
-          "type": "string",
-          "default": "",
-          "description": "Azure DevOps personal access token"
-        },
-        "hodoscope.maxPRs": {
-          "type": "number",
-          "default": 200,
-          "description": "Maximum number of PRs to fetch per repository"
-        },
-        "hodoscope.animation.speed": {
-          "type": "number",
-          "default": 1,
-          "description": "Animation speed multiplier (0.5 = slow, 2.0 = fast)"
-        },
-        "hodoscope.animation.particleTrails": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show glowing particle trail effects"
-        }
-      }
-    }
-  },
   "scripts": {
-    "build": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
-    "build:webview": "esbuild ./src/webview/index.ts --bundle --outfile=dist/webview.js --format=iife --platform=browser --sourcemap",
-    "build:all": "npm run build && npm run build:webview",
-    "watch": "npm run build -- --watch",
+    "generate": "tsx scripts/demo-scatter.ts",
+    "start": "serve dist",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src --ext ts",
-    "package": "vsce package"
+    "lint": "eslint src --ext ts"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.0",
+    "azure-devops-node-api": "^14.0.0",
+    "d3": "^7.9.0",
+    "serve": "^14.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
-    "@types/vscode": "^1.85.0",
     "@vitest/coverage-v8": "^2.1.0",
     "esbuild": "^0.24.0",
     "eslint": "^9.0.0",
@@ -99,10 +38,5 @@
     "tsx": "^4.21.0",
     "typescript": "^5.5.0",
     "vitest": "^2.1.0"
-  },
-  "dependencies": {
-    "@octokit/rest": "^21.0.0",
-    "azure-devops-node-api": "^14.0.0",
-    "d3": "^7.9.0"
   }
 }

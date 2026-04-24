@@ -133,7 +133,7 @@ function runScatterScript(): Promise<{ html: string; log: string }> {
   return new Promise((resolve, reject) => {
     // Resolve the script relative to this file so it works from any cwd.
     const scriptPath = path.resolve(__dirname, '..', 'scripts', 'demo-scatter.ts');
-    const htmlPath = path.resolve(__dirname, '..', 'dist', 'scatter.html');
+    const htmlPath = path.resolve(__dirname, '..', 'dist', 'index.html');
     if (!fs.existsSync(scriptPath)) {
       reject(new Error(`demo-scatter.ts not found at ${scriptPath}`));
       return;
@@ -153,7 +153,7 @@ function runScatterScript(): Promise<{ html: string; log: string }> {
         return;
       }
       if (!fs.existsSync(htmlPath)) {
-        reject(new Error(`scatter.html was not produced at ${htmlPath}`));
+        reject(new Error(`index.html was not produced at ${htmlPath}`));
         return;
       }
       resolve({ html: htmlPath, log });
