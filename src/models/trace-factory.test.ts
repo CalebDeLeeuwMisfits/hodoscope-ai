@@ -65,7 +65,7 @@ describe('buildWorkItemTrace', () => {
     expect(t.prNumber).toBe(42);
     expect(t.title).toBe('Build TTS pipeline');
     expect(t.repoFullName).toBe('Audiotising');
-    expect(t.author).toBe('Alice');
+    expect(t.author).toBe('Bob');
     expect(t.reviewers).toEqual(['Bob']);
   });
 
@@ -126,7 +126,7 @@ describe('buildWorkItemTrace', () => {
     expect(t.events.filter(e => e.type === 'iteration_moved')).toHaveLength(0);
   });
 
-  it('uses last revision assignee as current reviewer, first as author', () => {
+  it('uses current assignee (last revision) as both author and reviewer', () => {
     const t = buildWorkItemTrace({
       project: 'X',
       id: 1,
@@ -134,8 +134,23 @@ describe('buildWorkItemTrace', () => {
       url: '',
       revisions: baseRevisions,
     });
-    expect(t.author).toBe('Alice'); // first revision's changedBy
+    expect(t.author).toBe('Bob'); // latest assignee — owns the dot on the scatter
     expect(t.reviewers).toEqual(['Bob']); // last revision's assignedTo
+  });
+
+  it('falls back to first changedBy when latest revision has no assignee', () => {
+    const unassignedThenLeft: WorkItemRevision[] = [
+      { changedDate: '2026-03-01T10:00:00.000Z', state: 'New', iterationPath: 'S1', assignedTo: '', changedBy: 'Alice' },
+      { changedDate: '2026-03-02T10:00:00.000Z', state: 'Active', iterationPath: 'S1', assignedTo: '', changedBy: 'Alice' },
+    ];
+    const t = buildWorkItemTrace({
+      project: 'X',
+      id: 2,
+      title: 'Unassigned',
+      url: '',
+      revisions: unassignedThenLeft,
+    });
+    expect(t.author).toBe('Alice');
   });
 
   it('handles a single-revision work item (just created)', () => {
