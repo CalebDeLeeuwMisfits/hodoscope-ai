@@ -190,6 +190,12 @@ export function generateScatterHTML(
       box-shadow: 0 0 4px currentColor;
     }
     .leg-cnt { margin-left: auto; color: #8b949e; font-size: 9px; }
+    .leg-section {
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em;
+      color: #6e7681; margin-top: 8px; margin-bottom: 2px;
+      border-bottom: 1px solid #21262d; padding-bottom: 2px;
+    }
+    .leg-section:first-child { margin-top: 0; }
 
     /* Tooltip */
     .tooltip {
@@ -536,23 +542,59 @@ export function generateScatterHTML(
 
     function buildLegend(vals, cmap) {
       var el = document.getElementById('legend');
-      el.innerHTML = vals.map(function(v) {
-        var prPts = pts.filter(function(p) { return p[colorBy] === v && p.status !== 'repo_created' && p.status !== 'work_item'; });
-        var repoPts = pts.filter(function(p) { return p[colorBy] === v && p.status === 'repo_created'; });
-        var wiPts = pts.filter(function(p) { return p[colorBy] === v && p.status === 'work_item'; });
+
+      function renderRow(v, scopePts) {
+        var prPts = scopePts.filter(function(p) { return p.status !== 'repo_created' && p.status !== 'work_item'; });
+        var repoPts = scopePts.filter(function(p) { return p.status === 'repo_created'; });
+        var wiPts = scopePts.filter(function(p) { return p.status === 'work_item'; });
         var vis = prPts.filter(function(p) { return isVisible(p); }).length;
         var cnt = prPts.length;
-        var repoCount = repoPts.length;
-        var wiCount = wiPts.length;
         var off = hidden[v] ? ' off' : '';
         return '<div class="leg-item' + off + '" data-v="' + esc(v) + '">' +
           '<span class="leg-dot" style="color:' + cmap[v] + ';background:' + cmap[v] + '"></span>' +
           '<span>' + esc(v) + '</span>' +
           '<span class="leg-cnt">' + vis + '/' + cnt +
-            (repoCount > 0 ? ' <span style="color:#00d2d3;" title="Repos founded">◆' + repoCount + '</span>' : '') +
-            (wiCount > 0 ? ' <span style="color:#ffb347;" title="Work items">▲' + wiCount + '</span>' : '') +
+            (repoPts.length > 0 ? ' <span style="color:#00d2d3;" title="Repos founded">◆' + repoPts.length + '</span>' : '') +
+            (wiPts.length > 0 ? ' <span style="color:#ffb347;" title="Work items">▲' + wiPts.length + '</span>' : '') +
           '</span></div>';
-      }).join('');
+      }
+
+      // When coloring by author, split the legend into provider sections so
+      // crossover identities (e.g. "calebdeleeuw" on GitHub vs "Caleb DeLeeuw"
+      // on Azure DevOps) are visible side-by-side under their respective
+      // sections. Same color and toggle behavior across sections.
+      if (colorBy === 'author') {
+        var byProvider = { 'github': [], 'azure-devops': [], 'wrike': [] };
+        var seen = { 'github': {}, 'azure-devops': {}, 'wrike': {} };
+        pts.forEach(function(p) {
+          if (!p.author || !p.provider) return;
+          if (!byProvider[p.provider]) return;
+          if (seen[p.provider][p.author]) return;
+          seen[p.provider][p.author] = 1;
+          byProvider[p.provider].push(p.author);
+        });
+        var sections = [
+          { key: 'github', label: 'GitHub', authors: byProvider['github'] },
+          { key: 'azure-devops', label: 'Azure DevOps', authors: byProvider['azure-devops'] },
+          { key: 'wrike', label: 'Wrike', authors: byProvider['wrike'] },
+        ];
+        var html = '';
+        sections.forEach(function(s) {
+          if (s.authors.length === 0) return;
+          html += '<div class="leg-section">' + esc(s.label) + '</div>';
+          s.authors.forEach(function(v) {
+            var scopePts = pts.filter(function(p) { return p.author === v && p.provider === s.key; });
+            html += renderRow(v, scopePts);
+          });
+        });
+        el.innerHTML = html;
+      } else {
+        el.innerHTML = vals.map(function(v) {
+          var scopePts = pts.filter(function(p) { return p[colorBy] === v; });
+          return renderRow(v, scopePts);
+        }).join('');
+      }
+
       el.querySelectorAll('.leg-item').forEach(function(item) {
         item.addEventListener('click', function() {
           var v = this.dataset.v;

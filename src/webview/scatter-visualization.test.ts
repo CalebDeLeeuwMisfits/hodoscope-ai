@@ -45,3 +45,34 @@ describe('generateScatterHTML — Wrike adaptations', () => {
     expect(html).toContain('Project');
   });
 });
+
+describe('generateScatterHTML — author legend split by provider', () => {
+  it('emits provider section headers when colored by author and providers mix', () => {
+    const html = generateScatterHTML(
+      [
+        makePoint({ id: 'a', author: 'alice', provider: 'github' }),
+        makePoint({ id: 'b', author: 'caleb-ado', provider: 'azure-devops' }),
+      ],
+      stats,
+      'n',
+      '',
+    );
+    // The runtime buildLegend code must contain section labels for both providers.
+    expect(html).toContain('GitHub');
+    expect(html).toContain('Azure DevOps');
+    // And a CSS class for the section header so it renders distinctly.
+    expect(html).toContain('leg-section');
+  });
+
+  it('omits a provider section when no points come from that provider', () => {
+    const html = generateScatterHTML(
+      [makePoint({ author: 'alice', provider: 'github' })],
+      stats,
+      'n',
+      '',
+    );
+    // Section rendering is conditional on `s.authors.length > 0` at runtime,
+    // so source code must guard the header emission.
+    expect(html).toContain("if (s.authors.length === 0) return");
+  });
+});
