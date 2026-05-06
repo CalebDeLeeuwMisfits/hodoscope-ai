@@ -755,18 +755,38 @@ export function generateScatterHTML(
         labels.push({ repo: repo, cx: cx, cy: cy, tw: tw, color: c.color });
       });
 
-      // When mouse is near overlapping labels, fan them out vertically
+      // When mouse is near overlapping labels, fan them out vertically.
+      // Persistence: keep the cluster open while the mouse is anywhere inside
+      // the fanned-out bbox (set by a prior frame), with a short grace period
+      // after leaving so the fan doesn't collapse mid-reach.
       if (_hoveredLabelCluster) {
         var cluster = _hoveredLabelCluster;
-        // Check if mouse is still near the cluster
         var nearCluster = false;
-        for (var ci = 0; ci < cluster.length; ci++) {
-          var cl = cluster[ci];
-          if (Math.abs(_labelMouseX - cl.cx) < cl.tw && Math.abs(_labelMouseY - cl.cy) < 60) {
-            nearCluster = true; break;
+        var bb = cluster._bbox;
+        if (bb) {
+          var pad = 20;
+          if (_labelMouseX >= bb.x0 - pad && _labelMouseX <= bb.x1 + pad &&
+              _labelMouseY >= bb.y0 - pad && _labelMouseY <= bb.y1 + pad) {
+            nearCluster = true;
           }
         }
-        if (!nearCluster) _hoveredLabelCluster = null;
+        // Fallback: pre-bbox frame, or pointer near an original centroid.
+        if (!nearCluster) {
+          for (var ci = 0; ci < cluster.length; ci++) {
+            var cl = cluster[ci];
+            if (Math.abs(_labelMouseX - cl.cx) < cl.tw && Math.abs(_labelMouseY - cl.cy) < 60) {
+              nearCluster = true; break;
+            }
+          }
+        }
+        if (nearCluster) {
+          cluster._leaveAt = 0;
+        } else {
+          if (!cluster._leaveAt) cluster._leaveAt = Date.now();
+          if (Date.now() - cluster._leaveAt > 300) {
+            _hoveredLabelCluster = null;
+          }
+        }
       }
 
       // Detect overlap groups near the mouse
@@ -790,7 +810,8 @@ export function generateScatterHTML(
         }
       }
 
-      // Apply fan-out offset to clustered labels
+      // Apply fan-out offset to clustered labels and record the fanned bbox
+      // so the next frame's persistence check covers all reachable hover area.
       if (_hoveredLabelCluster) {
         var fanGroup = _hoveredLabelCluster;
         // Sort by original cy position
@@ -800,9 +821,18 @@ export function generateScatterHTML(
         midY /= fanGroup.length;
         var spacing = 20;
         var startY = midY - ((fanGroup.length - 1) * spacing) / 2;
+        var bbX0 = Infinity, bbX1 = -Infinity, bbY0 = Infinity, bbY1 = -Infinity;
         for (var fi = 0; fi < fanGroup.length; fi++) {
-          fanGroup[fi]._fanY = startY + fi * spacing;
+          var fl = fanGroup[fi];
+          fl._fanY = startY + fi * spacing;
+          var lx0 = fl.cx - fl.tw/2, lx1 = fl.cx + fl.tw/2;
+          var ly0 = fl._fanY - 8, ly1 = fl._fanY + 8;
+          if (lx0 < bbX0) bbX0 = lx0;
+          if (lx1 > bbX1) bbX1 = lx1;
+          if (ly0 < bbY0) bbY0 = ly0;
+          if (ly1 > bbY1) bbY1 = ly1;
         }
+        fanGroup._bbox = { x0: bbX0, x1: bbX1, y0: bbY0, y1: bbY1 };
       }
 
       labels.forEach(function(l) {
