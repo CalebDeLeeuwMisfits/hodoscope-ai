@@ -361,7 +361,7 @@ describe('AzureDevOpsFetcher', () => {
         expect(traces[0].prNumber).toBe(42);
         expect(traces[0].title).toBe('Build TTS pipeline');
         expect(traces[0].repoFullName).toBe('Audiotising');
-        expect(traces[0].author).toBe('Alice');
+        expect(traces[0].author).toBe('Bob');
         expect(traces[0].reviewers).toEqual(['Bob']);
       });
 

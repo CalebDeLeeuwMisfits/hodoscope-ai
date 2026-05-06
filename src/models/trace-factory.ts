@@ -74,7 +74,7 @@ export function buildWorkItemTrace(input: BuildWorkItemTraceInput): PRTrace {
     prNumber: id,
     title,
     description: '',
-    author: first.changedBy || 'unknown',
+    author: last.assignedTo || first.changedBy || 'unknown',
     status: 'work_item',
     sourceBranch: '',
     // Co-opt targetBranch to carry the *current* state so the scatter viz
